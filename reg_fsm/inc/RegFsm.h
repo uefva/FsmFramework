@@ -9,6 +9,10 @@
 
 class RegFsm : public Cfsm
 {
+private:
+    EerrNo SendNextMsg(const CMsg& currentMsg, MsgType nextType);
+    WS_TIMER_ID StartNextTimer(const CMsg& currentMsg, MsgType nextType, unsigned int delayMs);
+
 public:
     explicit RegFsm();
 
@@ -16,6 +20,7 @@ public:
     EerrNo ProcessMsg(CMsg& pMsg);
     void PostPrcMsg(CMsg& pBuf);
 
+    EerrNo Destroy() override;
     EerrNo Destory() override;
     void Print(bool detailFlag) override;
 };

@@ -69,5 +69,4 @@ Testing/
 .cache/
 
 .idea
-CMakeLists.txt
 cmake-build-debug
