@@ -13,7 +13,7 @@
 
 void TestDefaultMsg()
 {
-    // 验证消息对象的默认路由字段和事件类型。
+    // Verify the default event type and routing fields.
     CMsg msg;
     assert(MSG_INIT == msg.type);
     assert(0 == msg.serviceId);
@@ -23,7 +23,7 @@ void TestDefaultMsg()
 
 void TestInvalidTransition()
 {
-    // RegFsm 初始为 IDLE，直接处理 MSG_RESP 应被判定为非法转移。
+    // RegFsm starts from IDLE, so MSG_RESP is an invalid transition.
     RegFsm fsm;
     CMsg msg;
     msg.type = MSG_RESP;
@@ -33,7 +33,7 @@ void TestInvalidTransition()
 
 void TestManagerFactoryFlow()
 {
-    // 验证 manager -> factory -> FSM 的主链路可以被驱动起来。
+    // Verify that the manager -> factory -> FSM pipeline can be driven.
     Cfactory_mgr mgr;
     assert(SUCCESS == mgr.RegisterFactory(new RegFactory(1)));
     assert(SUCCESS == mgr.Start());

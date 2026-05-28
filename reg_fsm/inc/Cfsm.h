@@ -9,35 +9,35 @@
 
 class Cfactory;
 
-// 有限状态机基类：
-// 代表一个具体 FSM 实例，保存状态、所属工厂和消息暂存队列。
+// Base finite state machine.
+// Represents one FSM instance and stores state, owner factory, and deferred messages.
 class Cfsm
 {
 private:
-    unsigned int _fsmId;        // FSM 在所属工厂中的实例 ID。
-    Tstate _state;              // FSM 当前状态。
-    EerrNo _prc;                // 最近一次消息处理结果。
-    Cfactory* _factory;         // 所属工厂，FSM 可通过它访问 manager。
+    unsigned int _fsmId;        // FSM instance ID inside its owner factory.
+    Tstate _state;              // Current FSM state.
+    EerrNo _prc;                // Last message processing result.
+    Cfactory* _factory;         // Owner factory; used to access the manager.
 
 protected:
-    std::list<CMsg> _save;      // 暂存消息：后续条件满足时可继续处理。
-    std::list<CMsg> _hold;      // 挂起消息：当前不处理，但也不丢弃。
+    std::list<CMsg> _save;      // Saved messages that may be resumed later.
+    std::list<CMsg> _hold;      // Held messages that are not processed yet.
 
-    // 低耦合辅助接口：业务 FSM 不直接依赖 Cfactory_mgr，只通过基类投递事件。
+    // Low-coupling helpers: business FSMs post events through the base class.
     EerrNo SendMsg(const CMsg& msg);
     WS_TIMER_ID StartTimer(unsigned int timeoutMs, const CMsg& timeoutMsg);
     EerrNo StopTimer(WS_TIMER_ID timerId);
 
-    // 状态切换钩子，派生类可按需重写。
-    virtual void OnExitState(Tstate oldState, Tstate newState);
-    virtual void OnEnterState(Tstate oldState, Tstate newState);
+    // State transition hooks that derived FSMs can override.
+    virtual void OnExitState(Tstate from, Tstate to);
+    virtual void OnEnterState(Tstate from, Tstate to);
 
 public:
-    void _changeState(Tstate state);            // 内部状态切换接口。
+    void _changeState(Tstate state);            // Internal state change helper.
 
 public:
-    explicit Cfsm(Tstate state = IDLE);         // 构造 FSM，默认从 IDLE 开始。
-    virtual ~Cfsm();                            // 析构函数，资源回收由 factory 主导。
+    explicit Cfsm(Tstate state = IDLE);         // Construct an FSM, defaulting to IDLE.
+    virtual ~Cfsm();                            // Resource cleanup is driven by the factory.
 
     unsigned int GetFsmId() const;
     void SetFsmId(unsigned int fsmId);
@@ -45,24 +45,25 @@ public:
     Cfactory* GetFactory();
     void SetFactory(Cfactory* factory);
 
-    Tstate GetState() const;                    // 获取当前状态。
-    void SetState(Tstate state);                // 设置当前状态，并触发进入/退出钩子。
+    Tstate GetState() const;                    // Get current state.
+    void SetState(Tstate state);                // Set state and trigger enter/exit hooks.
 
-    virtual void PrePrcMsg(CMsg& pBuf) = 0;     // 消息前处理钩子。
-    virtual EerrNo ProcessMsg(CMsg& pMsg) = 0;  // 消息主处理逻辑，由业务 FSM 实现。
-    virtual void PostPrcMsg(CMsg& pBuf) = 0;    // 消息后处理钩子。
+    virtual void PrePrcMsg(CMsg& pBuf) = 0;     // Message pre-processing hook.
+    virtual EerrNo ProcessMsg(CMsg& pMsg) = 0;  // Main message processing logic.
+    virtual void PostPrcMsg(CMsg& pBuf) = 0;    // Message post-processing hook.
 
-    virtual EerrNo Create();                    // FSM 创建初始化。
-    virtual EerrNo Destroy();                   // FSM 销毁清理。
-    virtual EerrNo Destory();                   // 兼容旧拼写，内部转调 Destroy。
+    virtual EerrNo Create();                    // FSM initialization.
+    virtual EerrNo Destroy();                   // FSM cleanup.
+    virtual EerrNo Destory();                   // Backward-compatible typo wrapper.
 
-    // 消息暂存队列接口，当前先提供基础能力，后续可接入调度策略。
+    // Deferred-message queue helpers. Scheduling policy can be added later.
     void SaveMsg(const CMsg& msg);
     void HoldMsg(const CMsg& msg);
     bool PopSavedMsg(CMsg& msg);
     bool PopHeldMsg(CMsg& msg);
 
-    virtual void Print(bool detailFlag);        // 打印 FSM 信息。
+    virtual void Print(bool detailFlag);        // Print FSM information.
 };
+
 
 #endif //MYFSMDEMO_REG_FSM_H

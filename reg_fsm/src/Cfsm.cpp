@@ -17,7 +17,7 @@ void Cfsm::_changeState(Tstate state)
 Cfsm::Cfsm(Tstate state)
     : _fsmId(0), _state(state), _prc(EerrNo::INIT), _factory(nullptr)
 {
-    // 构造函数只初始化基础字段，避免和 Cfactory::AddFsm 中的 Create 重复初始化。
+    // Only initialize basic fields here to avoid duplicating Create in Cfactory::AddFsm.
 }
 
 Cfsm::~Cfsm()
@@ -137,13 +137,13 @@ EerrNo Cfsm::Destory()
 
 void Cfsm::SaveMsg(const CMsg& msg)
 {
-    // 保存当前无法立即处理、但后续可恢复处理的消息。
+    // Save a message that cannot be processed immediately but may resume later.
     this->_save.push_back(msg);
 }
 
 void Cfsm::HoldMsg(const CMsg& msg)
 {
-    // 挂起消息，通常用于等待外部条件或状态变化后再处理。
+    // Hold a message while waiting for an external condition or state change.
     this->_hold.push_back(msg);
 }
 

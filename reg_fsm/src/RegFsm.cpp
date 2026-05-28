@@ -9,8 +9,8 @@
 
 namespace
 {
-// 注册流程转移规则：
-// from + event 命中后，切换到 to，并按配置投递 nextEvent。
+// Registration flow transition rule:
+// when from + event matches, switch to to and optionally post nextEvent.
 struct RegTransition
 {
     Tstate from;
@@ -33,7 +33,7 @@ const RegTransition REG_TRANSITIONS[] = {
 
 const RegTransition* FindTransition(Tstate state, MsgType event)
 {
-    // 当前使用线性查找，规则较少时足够直观；后续可换成 map 加速。
+    // Linear lookup is enough while the transition table is small.
     const unsigned int transitionCount =
         sizeof(REG_TRANSITIONS) / sizeof(REG_TRANSITIONS[0]);
 
@@ -57,7 +57,7 @@ RegFsm::RegFsm() : Cfsm(IDLE)
 
 EerrNo RegFsm::SendNextMsg(const CMsg& currentMsg, MsgType nextType)
 {
-    // 复制当前消息的路由字段，只替换事件类型和 FSM ID。
+    // Preserve routing fields and only replace the event type and FSM ID.
     CMsg nextMsg = currentMsg;
     nextMsg.type = nextType;
     nextMsg.fsmId = GetFsmId();
@@ -67,7 +67,7 @@ EerrNo RegFsm::SendNextMsg(const CMsg& currentMsg, MsgType nextType)
 
 WS_TIMER_ID RegFsm::StartNextTimer(const CMsg& currentMsg, MsgType nextType, unsigned int delayMs)
 {
-    // 定时器到期后投递的仍然是普通消息，因此后续分发链路保持一致。
+    // Timer expiration posts a normal message, so dispatch remains consistent.
     CMsg nextMsg = currentMsg;
     nextMsg.type = nextType;
     nextMsg.fsmId = GetFsmId();
@@ -82,7 +82,7 @@ void RegFsm::PrePrcMsg(CMsg& pBuf)
 
 EerrNo RegFsm::ProcessMsg(CMsg& pMsg)
 {
-    // 终止态 FSM 不再处理消息，销毁动作由 factory 统一负责。
+    // Terminal FSMs no longer process messages; the factory owns destruction.
     if (KILL_FSM == this->GetState())
     {
         return ERROR;
@@ -94,7 +94,7 @@ EerrNo RegFsm::ProcessMsg(CMsg& pMsg)
         return EerrNo::ERROR;
     };
 
-    // 用“当前状态 + 当前事件”查表，避免单纯按消息类型误处理非法状态。
+    // Use current state + current event to avoid accepting invalid transitions.
     const RegTransition* transition = FindTransition(this->GetState(), pMsg.type);
     if (nullptr == transition)
     {
@@ -103,7 +103,7 @@ EerrNo RegFsm::ProcessMsg(CMsg& pMsg)
         return EerrNo::ERROR;
     }
 
-    // 命中转移后先切换状态，再投递后续事件。
+    // Apply the transition first, then post the next event if configured.
     std::cout << transition->log << std::endl;
     this->SetState(transition->to);
 
@@ -141,4 +141,3 @@ void RegFsm::Print(bool detailFlag)
 {
     std::cout << "[RegFsm::Print]" << std::endl;
 }
-

@@ -8,7 +8,7 @@ set(CMAKE_CXX_STANDARD_REQUIRED ON)
 find_package(Threads REQUIRED)
 enable_testing()
 
-# 示例程序：演示 manager/factory/fsm 的完整注册流程。
+# Demo executable for the full manager/factory/fsm registration flow.
 add_executable(reg_fsm_demo
     reg_fsm/main.cpp
     reg_fsm/src/CMsg.cpp
@@ -25,7 +25,7 @@ target_include_directories(reg_fsm_demo PRIVATE
 
 target_link_libraries(reg_fsm_demo PRIVATE Threads::Threads)
 
-# 基础测试：验证消息默认值、非法转移和主流程驱动。
+# Basic tests for message defaults, invalid transitions, and the main flow.
 add_executable(reg_fsm_tests
     tests/framework_tests.cpp
     reg_fsm/src/CMsg.cpp

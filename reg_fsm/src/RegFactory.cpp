@@ -21,7 +21,7 @@ EerrNo RegFactory::FacMsgPrc(CMsg& msg)
 {
     Cfsm* fsm = nullptr;
 
-    // fsmId 非 0 时，优先路由到已有 FSM。
+    // Prefer routing to an existing FSM when fsmId is provided.
     if (0 != msg.fsmId)
     {
         fsm = FindFsm(msg.fsmId);
@@ -29,7 +29,7 @@ EerrNo RegFactory::FacMsgPrc(CMsg& msg)
 
     if (nullptr == fsm)
     {
-        // 当前约定：只有 MSG_INIT 可以创建新的注册 FSM。
+        // Only MSG_INIT is allowed to create a new registration FSM.
         if (MSG_INIT != msg.type)
         {
             std::cout << "RegFactory::FacMsgPrc fsm not found, fsmId="
@@ -37,7 +37,7 @@ EerrNo RegFactory::FacMsgPrc(CMsg& msg)
             return ERROR;
         }
 
-        // 首条初始化消息创建新 FSM，后续消息必须携带 fsmId。
+        // The first initialization message creates a new FSM.
         fsm = AddFsm();
     }
 

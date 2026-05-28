@@ -3,33 +3,49 @@
 //
 
 #include <chrono>
+#include <iostream>
+#include <ostream>
 #include <thread>
 
 #include "inc/Cfactory_mgr.h"
 #include "inc/RegFactory.h"
 
-void FsmTest1()
+Cfactory_mgr mgr;
+
+void FsmMgrTest(const U32 serviceId)
 {
-    Cfactory_mgr mgr;
-    mgr.RegisterFactory(new RegFactory(1));
-
-    // manager 自己启动后台消息泵，调用方不直接管理工作线程。
-    mgr.Start();
-
     CMsg pMsg;
-    pMsg.serviceId = 1;
+    // Set the second-level factory id.
+    pMsg.serviceId = serviceId;
     pMsg.type = MSG_INIT;
 
-    // 只投递首条消息，后续流程由 RegFsm 通过 manager 自投递或定时器推进。
+    // Only send the first message; RegFsm drives the rest via manager events or timers.
     mgr.SendMsg(pMsg);
 
     std::this_thread::sleep_for(std::chrono::milliseconds(100));
-    mgr.Stop();
-    mgr.Join();
 }
 
 int main() {
-    FsmTest1();
+    mgr.RegisterFactory(new RegFactory(FAC_REG_FAC_ID));
+    mgr.RegisterFactory(new RegFactory(FAC_AUTH_FAC_ID));
+
+    // Let the manager own its background message-pump thread.
+    mgr.Start();
+
+    std::cout << std::endl;
+
+    // Send messages to two different target factories.
+    FsmMgrTest(FAC_REG_FAC_ID);
+    FsmMgrTest(FAC_AUTH_FAC_ID);
+
+    {
+        // FAC_AUTH_FAC_ID + 1 is an unknown factory id and should trigger an error path.
+        FsmMgrTest(FAC_AUTH_FAC_ID + 1);
+    }
+
+
+    mgr.Stop();
+    mgr.Join();
 
     return 0;
 }

@@ -19,19 +19,19 @@ enum MsgType
 class CMsg
 {
     public:
-    // 当前事件类型，状态机根据该字段查找状态转移规则。
+    // Current event type used by the FSM to find a transition rule.
     MsgType type = MSG_INIT;
 
-    // 目标工厂 ID，用于 Cfactory_mgr 将消息路由到对应 Cfactory。
+    // Target factory ID used by Cfactory_mgr to route the message.
     unsigned int serviceId = 0;
 
-    // 目标 FSM 实例 ID。为 0 时，具体工厂可以按业务规则创建新 FSM。
+    // Target FSM instance ID. A value of 0 may create a new FSM by factory rules.
     unsigned int fsmId = 0;
 
-    // 业务会话 ID，预留给上层协议或业务流程做关联。
+    // Business session ID reserved for upper-layer protocol or workflow tracking.
     unsigned int sessionId = 0;
 
-    // 消息载荷，当前 demo 未深度使用，后续可承载协议数据。
+    // Message payload. The current demo does not deeply use it yet.
     std::vector<char> msg;
 };
 

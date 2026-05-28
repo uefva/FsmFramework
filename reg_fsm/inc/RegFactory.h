@@ -7,8 +7,8 @@
 
 #include "Cfactory.h"
 
-// 注册业务工厂：
-// 负责创建 RegFsm，并按 fsmId 将注册类消息路由到对应实例。
+// Registration business factory.
+// Creates RegFsm instances and routes registration messages by fsmId.
 class RegFactory : public Cfactory
 {
 public:
