@@ -45,7 +45,6 @@ int main() {
 
 
     mgr.Stop();
-    mgr.Join();
 
     return 0;
 }

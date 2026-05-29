@@ -188,6 +188,7 @@ void Cfactory_mgr::Stop()
     }
 
     this->_pump_cv.notify_all();
+    this->Join();
 }
 
 void Cfactory_mgr::Join()
