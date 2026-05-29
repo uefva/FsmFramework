@@ -27,14 +27,12 @@ const TransitionT* FindFsmTransition(const TransitionT* transitions,
     return nullptr;
 }
 
-template <typename FsmT, typename TransitionT, typename RunActionT, typename PostNextT>
+template <typename FsmT, typename TransitionT>
 EerrNo ExecuteFsmTransition(FsmT& fsm,
                             CMsg& msg,
                             const TransitionT* transitions,
                             unsigned int transitionCount,
-                            const char* fsmName,
-                            RunActionT runAction,
-                            PostNextT postNext)
+                            const char* fsmName)
 {
     if (KILL_FSM == fsm.GetState())
     {
@@ -57,12 +55,12 @@ EerrNo ExecuteFsmTransition(FsmT& fsm,
     }
 
     std::cout << transition->log << std::endl;
-    runAction(transition->action);
+    fsm.RunAction(transition->action);
     fsm.SetState(transition->to);
 
     if (transition->hasNext)
     {
-        postNext(*transition, msg);
+        return fsm.PostNextEvent(*transition, msg);
     }
 
     return SUCCESS;

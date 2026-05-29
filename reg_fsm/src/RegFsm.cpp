@@ -9,25 +9,6 @@
 #include <iostream>
 #include <ostream>
 
-namespace
-{
-using RegAction = void (RegFsm::*)();
-
-// Registration flow transition rule:
-// when from + event matches, switch to to and optionally post nextEvent.
-struct RegTransition
-{
-    Tstate from;
-    MsgType event;
-    Tstate to;
-    bool hasNext;
-    MsgType nextEvent;
-    unsigned int delayMs;
-    const char* log;
-    RegAction action;
-};
-}
-
 RegFsm::RegFsm() : Cfsm(IDLE)
 {
 
@@ -53,14 +34,9 @@ WS_TIMER_ID RegFsm::StartNextTimer(const CMsg& currentMsg, MsgType nextType, uns
     return StartTimer(delayMs, nextMsg);
 }
 
-void RegFsm::PrePrcMsg(CMsg& pBuf)
+const RegFsm::RegTransition* RegFsm::GetTransitions()
 {
-    Cfsm::PrePrcMsg(pBuf);
-}
-
-EerrNo RegFsm::ProcessMsg(CMsg& pMsg)
-{
-    const RegTransition REG_TRANSITIONS[] = {
+    static const RegTransition transitions[] = {
         {IDLE, MSG_INIT, WORKING, true, MSG_CONNECT, 0, "[REG][MSG_INIT]: start reg service", &RegFsm::HandleInit},
         {WORKING, MSG_CONNECT, WORKING, true, MSG_REQ, 0, "[REG][MSG_CONNECT]: connect reg service", &RegFsm::HandleConnect},
         {WORKING, MSG_REQ, WORKING, true, MSG_RESP, 0, "[REG][MSG_REQ]: request reg service", &RegFsm::HandleReq},
@@ -68,31 +44,44 @@ EerrNo RegFsm::ProcessMsg(CMsg& pMsg)
         {WORKING, MSG_TIMEOUT, WORKING, true, MSG_CLOSE, 0, "[REG][MSG_TIMEOUT]: timeout reg service", &RegFsm::HandleTimeout},
         {WORKING, MSG_CLOSE, KILL_FSM, false, MSG_CLOSE, 0, "[REG][MSG_CLOSE]: close reg service", &RegFsm::HandleClose},
     };
-    const unsigned int transitionCount =
-        sizeof(REG_TRANSITIONS) / sizeof(REG_TRANSITIONS[0]);
 
-    return ExecuteFsmTransition(
-        *this,
-        pMsg,
-        REG_TRANSITIONS,
-        transitionCount,
-        "RegFsm",
-        [this](RegAction action) {
-            if (nullptr != action)
-            {
-                (this->*action)();
-            }
-        },
-        [this](const RegTransition& transition, const CMsg& currentMsg) {
-            if (0 == transition.delayMs)
-            {
-                SendNextMsg(currentMsg, transition.nextEvent);
-            }
-            else
-            {
-                StartNextTimer(currentMsg, transition.nextEvent, transition.delayMs);
-            }
-        });
+    return transitions;
+}
+
+unsigned int RegFsm::GetTransitionCount()
+{
+    static const unsigned int transitionCount = 6;
+    return transitionCount;
+}
+
+void RegFsm::RunAction(RegAction action)
+{
+    if (nullptr != action)
+    {
+        (this->*action)();
+    }
+}
+
+EerrNo RegFsm::PostNextEvent(const RegTransition& transition, const CMsg& currentMsg)
+{
+    if (0 == transition.delayMs)
+    {
+        return SendNextMsg(currentMsg, transition.nextEvent);
+    }
+
+    return (0 == StartNextTimer(currentMsg, transition.nextEvent, transition.delayMs))
+        ? ERROR
+        : SUCCESS;
+}
+
+void RegFsm::PrePrcMsg(CMsg& pBuf)
+{
+    Cfsm::PrePrcMsg(pBuf);
+}
+
+EerrNo RegFsm::ProcessMsg(CMsg& pMsg)
+{
+    return ExecuteFsmTransition(*this, pMsg, GetTransitions(), GetTransitionCount(), "RegFsm");
 }
 
 void RegFsm::PostPrcMsg(CMsg& pBuf)

@@ -7,11 +7,43 @@
 
 #include "Cfsm.h"
 
+template <typename FsmT, typename TransitionT>
+EerrNo ExecuteFsmTransition(FsmT& fsm,
+                            CMsg& msg,
+                            const TransitionT* transitions,
+                            unsigned int transitionCount,
+                            const char* fsmName);
+
 class AuthFsm : public Cfsm
 {
 private:
+    using AuthAction = void (AuthFsm::*)();
+
+    struct AuthTransition
+    {
+        Tstate from;
+        MsgType event;
+        Tstate to;
+        bool hasNext;
+        MsgType nextEvent;
+        unsigned int delayMs;
+        const char* log;
+        AuthAction action;
+    };
+
+    template <typename FsmT, typename TransitionT>
+    friend EerrNo ExecuteFsmTransition(FsmT& fsm,
+                                       CMsg& msg,
+                                       const TransitionT* transitions,
+                                       unsigned int transitionCount,
+                                       const char* fsmName);
+
     EerrNo SendNextMsg(const CMsg& currentMsg, MsgType nextType);
     WS_TIMER_ID StartNextTimer(const CMsg& currentMsg, MsgType nextType, unsigned int delayMs);
+    static const AuthTransition* GetTransitions();
+    static unsigned int GetTransitionCount();
+    void RunAction(AuthAction action);
+    EerrNo PostNextEvent(const AuthTransition& transition, const CMsg& currentMsg);
     void HandleInit();
     void HandleConnect();
     void HandleReq();
