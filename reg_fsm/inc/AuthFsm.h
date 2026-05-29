@@ -11,6 +11,7 @@ class AuthFsm : public Cfsm
 {
 private:
     EerrNo SendNextMsg(const CMsg& currentMsg, MsgType nextType);
+    WS_TIMER_ID StartNextTimer(const CMsg& currentMsg, MsgType nextType, unsigned int delayMs);
     void HandleInit();
     void HandleConnect();
     void HandleReq();

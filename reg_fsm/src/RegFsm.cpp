@@ -4,6 +4,8 @@
 
 #include "../inc/RegFsm.h"
 
+#include "../inc/FsmTableExecutor.h"
+
 #include <iostream>
 #include <ostream>
 
@@ -24,24 +26,6 @@ struct RegTransition
     const char* log;
     RegAction action;
 };
-
-const RegTransition* FindTransition(const RegTransition* transitions,
-                                    unsigned int transitionCount,
-                                    Tstate state,
-                                    MsgType event)
-{
-    // Linear lookup is enough while the transition table is small.
-    for (unsigned int index = 0; index < transitionCount; ++index)
-    {
-        if ((transitions[index].from == state) &&
-            (transitions[index].event == event))
-        {
-            return &transitions[index];
-        }
-    }
-
-    return nullptr;
-}
 }
 
 RegFsm::RegFsm() : Cfsm(IDLE)
@@ -87,48 +71,28 @@ EerrNo RegFsm::ProcessMsg(CMsg& pMsg)
     const unsigned int transitionCount =
         sizeof(REG_TRANSITIONS) / sizeof(REG_TRANSITIONS[0]);
 
-    // Terminal FSMs no longer process messages; the factory owns destruction.
-    if (KILL_FSM == this->GetState())
-    {
-        return ERROR;
-    }
-
-    if (SUCCESS != Cfsm::ProcessMsg(pMsg))
-    {
-        std::cout << "RegFsm::ProcessMsg error" << std::endl;
-        return EerrNo::ERROR;
-    };
-
-    // Use current state + current event to avoid accepting invalid transitions.
-    const RegTransition* transition = FindTransition(REG_TRANSITIONS, transitionCount, this->GetState(), pMsg.type);
-    if (nullptr == transition)
-    {
-        std::cout << "RegFsm::ProcessMsg invalid transition, state="
-                  << this->GetState() << " msg=" << pMsg.type << std::endl;
-        return EerrNo::ERROR;
-    }
-
-    // Apply the transition first, then post the next event if configured.
-    std::cout << transition->log << std::endl;
-    if (nullptr != transition->action)
-    {
-        (this->*(transition->action))();
-    }
-    this->SetState(transition->to);
-
-    if (transition->hasNext)
-    {
-        if (0 == transition->delayMs)
-        {
-            SendNextMsg(pMsg, transition->nextEvent);
-        }
-        else
-        {
-            StartNextTimer(pMsg, transition->nextEvent, transition->delayMs);
-        }
-    }
-
-    return SUCCESS;
+    return ExecuteFsmTransition(
+        *this,
+        pMsg,
+        REG_TRANSITIONS,
+        transitionCount,
+        "RegFsm",
+        [this](RegAction action) {
+            if (nullptr != action)
+            {
+                (this->*action)();
+            }
+        },
+        [this](const RegTransition& transition, const CMsg& currentMsg) {
+            if (0 == transition.delayMs)
+            {
+                SendNextMsg(currentMsg, transition.nextEvent);
+            }
+            else
+            {
+                StartNextTimer(currentMsg, transition.nextEvent, transition.delayMs);
+            }
+        });
 }
 
 void RegFsm::PostPrcMsg(CMsg& pBuf)

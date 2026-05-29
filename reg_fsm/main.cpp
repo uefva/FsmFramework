@@ -23,7 +23,6 @@ void FsmMgrTest(const U32 serviceId)
     // Only send the first message; RegFsm drives the rest via manager events or timers.
     mgr.SendMsg(pMsg);
 
-    std::this_thread::sleep_for(std::chrono::milliseconds(100));
 }
 
 int main() {
@@ -44,6 +43,7 @@ int main() {
         FsmMgrTest(FAC_AUTH_FAC_ID + 1);
     }
 
+    std::this_thread::sleep_for(std::chrono::milliseconds(500));
 
     mgr.Stop();
 
