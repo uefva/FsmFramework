@@ -4,20 +4,26 @@
 
 本文档用于说明 `FsmFramework` 项目的当前代码结构、核心设计思路、状态机运行流程、主要类职责、接口约定、当前限制以及后续演进方向。
 
-当前项目规模较小，但已经具备一个有限状态机框架的基本雏形：
+当前项目已经具备一个有限状态机框架原型的基本结构：
 
 - 有统一的状态机基类；
 - 有独立的消息对象；
-- 有具体业务状态机实现；
-- 有示例入口演示完整消息推进流程。
+- 有注册和认证两套具体业务状态机；
+- 有 manager/factory/fsm 三层调度结构；
+- 有示例入口演示消息路由、状态转移和错误路径。
 
 本文档既描述“现在代码是怎么工作的”，也给出“后续如果要把它变成更通用框架，可以怎么演进”的建议。
 
 ## 2. 项目概述
 
-`FsmFramework` 是一个 C++ 事件驱动有限状态机框架原型。当前实现的是一个类似“注册服务”的状态机流程，并已经具备 `Cfactory_mgr -> Cfactory -> Cfsm` 三层调度结构。
+`FsmFramework` 是一个 C++ 事件驱动有限状态机框架原型。当前代码已经具备 `Cfactory_mgr -> Cfactory -> Cfsm` 三层调度结构，并实现了注册流程和认证流程两条业务链路。
 
-示例流程从 `MSG_INIT` 开始，依次经过连接、请求、响应、超时、关闭等步骤，最终进入 `KILL_FSM` 状态并由工厂回收 FSM 实例。
+示例程序会注册两个工厂：
+
+- `FAC_REG_FAC_ID -> RegFactory -> RegFsm`
+- `FAC_AUTH_FAC_ID -> AuthFactory -> AuthFsm`
+
+外部向 `Cfactory_mgr` 投递 `CMsg`，manager 按 `serviceId` 找到目标工厂，factory 按 `fsmId` 找到或创建 FSM。FSM 进入 `KILL_FSM` 后由 factory 统一回收。
 
 当前核心代码位于 `reg_fsm` 目录：
 
@@ -28,6 +34,8 @@ FsmFramework/
     ├── main.cpp
     ├── inc/
     │   ├── CMsg.h
+    │   ├── AuthFactory.h
+    │   ├── AuthFsm.h
     │   ├── Cfactory.h
     │   ├── Cfactory_mgr.h
     │   ├── Cfsm.h
@@ -35,6 +43,8 @@ FsmFramework/
     │   ├── RegFsm.h
     │   └── common.h
     └── src/
+        ├── AuthFactory.cpp
+        ├── AuthFsm.cpp
         ├── CMsg.cpp
         ├── Cfactory.cpp
         ├── Cfactory_mgr.cpp
@@ -53,7 +63,8 @@ tests/
 2. 通过继承方式扩展不同业务状态机。
 3. 用统一消息对象 `CMsg` 驱动状态机处理。
 4. 将消息处理拆分为前处理、处理中、后处理三个阶段。
-5. 让具体状态机自行定义消息到消息、消息到状态的转移逻辑。
+5. 通过 `Cfactory_mgr` 和 `Cfactory` 解耦消息入口、业务路由和 FSM 生命周期。
+6. 让具体状态机通过转移表定义状态和事件之间的关系。
 
 ## 4. 非目标
 
@@ -63,7 +74,7 @@ tests/
 
 1. 完整日志系统。
 2. 真实消息缓冲区资源池。
-3. 状态进入和退出回调。
+3. 状态进入和退出回调中的真实业务逻辑。
 4. 大规模压测与性能指标。
 5. 基于 GoogleTest 等测试框架的系统化单元测试。
 6. 定时器线程的条件变量唤醒优化。
@@ -77,7 +88,8 @@ tests/
 当前项目中：
 
 - 抽象状态机由 `Cfsm` 表示；
-- 注册流程状态机由 `RegFsm` 表示。
+- 注册流程状态机由 `RegFsm` 表示；
+- 认证流程状态机由 `AuthFsm` 表示。
 
 ### 5.2 状态
 
@@ -97,8 +109,8 @@ enum Tstate
 | 状态 | 含义 |
 |---|---|
 | `IDLE` | 状态机已创建，尚未进入业务处理流程。 |
-| `WORKING` | 状态机正在执行注册业务流程。 |
-| `KILL_FSM` | 状态机生命周期结束，外部循环应停止继续调用。 |
+| `WORKING` | 状态机正在执行业务流程。 |
+| `KILL_FSM` | 状态机生命周期结束，等待 factory 回收。 |
 
 ### 5.3 消息
 
@@ -148,11 +160,11 @@ enum MsgType
 
 | 消息 | 含义 |
 |---|---|
-| `MSG_INIT` | 初始化注册流程。 |
+| `MSG_INIT` | 初始化业务流程。 |
 | `MSG_CONNECT` | 建立连接或准备连接。 |
 | `MSG_REQ` | 发送或处理请求。 |
 | `MSG_RESP` | 处理响应。 |
-| `MSG_TIMEOUT` | 处理超时流程。 |
+| `MSG_TIMEOUT` | 处理超时流程，当前由注册流程使用。 |
 | `MSG_CLOSE` | 关闭流程并结束状态机。 |
 
 ### 5.5 处理结果
@@ -186,6 +198,7 @@ enum EerrNo
 
 - 基础类型别名，例如 `U32`；
 - 服务相关宏，例如 `CHAT_SERVICE_KEY_BASE`、`MAX_CHAT_SERVICE_KEY`；
+- 工厂 ID 常量，例如 `FAC_REG_FAC_ID`、`FAC_AUTH_FAC_ID`、`FAC_NUM_IN_MGR_MAX`；
 - 消息类型枚举 `Tmsg_type`；
 - 状态枚举 `Tstate`；
 - 错误码枚举 `EerrNo`。
@@ -293,9 +306,44 @@ struct RegTransition
 };
 ```
 
+### 6.5 `AuthFsm`
+
+`AuthFsm` 是认证业务状态机，定义在 `reg_fsm/inc/AuthFsm.h`，实现在 `reg_fsm/src/AuthFsm.cpp`。
+
+它同样继承自 `Cfsm`：
+
+```cpp
+class AuthFsm : public Cfsm
+```
+
+主要职责：
+
+1. 实现认证服务相关流程。
+2. 使用独立的 `AuthTransition` 转移表描述认证流程。
+3. 通过 `Cfsm::SendMsg` 投递后续事件。
+4. 在 `MSG_CLOSE` 后进入 `KILL_FSM`，由 `AuthFactory` 回收。
+
+### 6.6 `RegFactory` 和 `AuthFactory`
+
+`RegFactory` 和 `AuthFactory` 都继承自 `Cfactory`。
+
+两者职责一致，但创建的 FSM 类型不同：
+
+| 工厂 | serviceId | 创建的 FSM | 说明 |
+|---|---:|---|---|
+| `RegFactory` | `FAC_REG_FAC_ID` | `RegFsm` | 注册业务流程 |
+| `AuthFactory` | `FAC_AUTH_FAC_ID` | `AuthFsm` | 认证业务流程 |
+
+factory 的共同处理规则：
+
+1. 如果消息携带 `fsmId`，优先查找已有 FSM。
+2. 如果未找到 FSM，只有 `MSG_INIT` 可以创建新 FSM。
+3. 找到或创建 FSM 后调用 `DispatchToFsm`。
+4. FSM 进入 `KILL_FSM` 后调用 `KillFsm` 回收实例。
+
 ## 7. 状态转移设计
 
-### 7.1 消息推进表
+### 7.1 注册流程消息推进表
 
 当前注册流程中，消息按照固定顺序推进：
 
@@ -308,7 +356,19 @@ struct RegTransition
 | `MSG_TIMEOUT` | 处理超时阶段 | `MSG_CLOSE` |
 | `MSG_CLOSE` | 关闭注册服务 | 不再设置下一消息 |
 
-### 7.2 状态变化表
+### 7.2 认证流程消息推进表
+
+当前认证流程中，消息按照固定顺序推进：
+
+| 当前消息 | 处理行为 | 下一消息 |
+|---|---|---|
+| `MSG_INIT` | 准备认证上下文 | `MSG_CONNECT` |
+| `MSG_CONNECT` | 连接认证服务 | `MSG_REQ` |
+| `MSG_REQ` | 校验认证信息 | `MSG_RESP` |
+| `MSG_RESP` | 认证成功 | `MSG_CLOSE` |
+| `MSG_CLOSE` | 关闭认证流程 | 不再设置下一消息 |
+
+### 7.3 状态变化表
 
 当前状态变化比较简单：
 
@@ -321,135 +381,230 @@ struct RegTransition
 | `WORKING` | `MSG_TIMEOUT` | `WORKING` |
 | `WORKING` | `MSG_CLOSE` | `KILL_FSM` |
 
-### 7.3 当前实现中的关键点
+### 7.4 当前实现中的关键点
 
-`RegFsm::ProcessMsg` 的关键逻辑是：
+`RegFsm::ProcessMsg` 和 `AuthFsm::ProcessMsg` 的关键逻辑一致：
 
 1. 如果当前状态已经是 `KILL_FSM`，返回 `ERROR`，避免重复处理。
 2. 调用基类 `Cfsm::ProcessMsg(pMsg)`。
-3. 根据“当前状态 + 当前消息”查找 `RegTransition` 转移表。
+3. 根据“当前状态 + 当前消息”查找对应业务的转移表。
 4. 找不到合法转移时返回 `ERROR`。
 5. 找到转移后打印日志并切换到目标状态。
-6. 如果转移表配置了下一事件，则通过 `Cfactory_mgr::SendMsg` 或 `Cfactory_mgr::StartTimer` 投递。
+6. 如果转移表配置了下一事件，则通过 `Cfsm::SendMsg` 或 `Cfsm::StartTimer` 投递。
 7. 在 `MSG_CLOSE` 时设置状态为 `KILL_FSM`，随后由 `Cfactory` 回收该 FSM。
 
 这意味着当前状态机不再直接修改同一个 `CMsg::type` 来驱动流程，而是通过管理器消息泵投递下一条消息。普通事件和定时器事件走同一条分发链路。
 
-## 8. 运行流程
+## 8. 框架图与流程图
 
-### 8.1 主流程
+本节汇总当前框架的关键架构图和流程图，方便新接手的开发者快速理解整体协作方式。
 
-`main.cpp` 中的 `FsmTest1()` 是当前 demo 流程。
-
-伪代码如下：
-
-```cpp
-void FsmTest1()
-{
-    Cfactory_mgr mgr;
-    mgr.RegisterFactory(new RegFactory(1));
-
-    mgr.Start();
-
-    CMsg pMsg;
-    pMsg.serviceId = 1;
-    pMsg.type = MSG_INIT;
-    mgr.SendMsg(pMsg);
-
-    std::this_thread::sleep_for(std::chrono::milliseconds(100));
-    mgr.Stop();
-    mgr.Join();
-}
-```
-
-### 8.2 流程图
+### 8.1 总体架构图
 
 ```mermaid
 flowchart TD
-    A["进入 main"] --> B["创建 Cfactory_mgr"]
-    B --> C["注册 RegFactory"]
-    C --> D["启动消息泵线程"]
-    D --> E["投递 MSG_INIT"]
-    E --> F["Cfactory_mgr 路由到 RegFactory"]
-    F --> G["RegFactory 创建或查找 RegFsm"]
-    G --> H["RegFsm 通过转移表处理消息"]
-    H --> I{"是否有下一事件？"}
-    I -- "普通事件" --> J["SendMsg 投递下一消息"]
-    I -- "定时事件" --> K["StartTimer 延迟投递"]
-    J --> F
-    K --> F
-    H --> L{"状态是否为 KILL_FSM？"}
-    L -- "是" --> M["Cfactory 回收 FSM"]
-    M --> N["停止消息泵并退出"]
+    App["main.cpp / Application"] --> Mgr["Cfactory_mgr"]
+
+    Mgr --> Pump["Thread-safe message pump"]
+    Mgr --> Timer["Timer threads"]
+    Mgr --> RegFac["RegFactory"]
+    Mgr --> AuthFac["AuthFactory"]
+
+    RegFac --> RegFsm1["RegFsm instance"]
+    AuthFac --> AuthFsm1["AuthFsm instance"]
+
+    RegFsm1 --> Mgr
+    AuthFsm1 --> Mgr
+    Timer --> Pump
+    Pump --> Mgr
 ```
 
-### 8.3 消息流
+### 8.2 当前启动流程
 
 ```mermaid
-stateDiagram-v2
-    [*] --> MSG_INIT
-    MSG_INIT --> MSG_CONNECT
-    MSG_CONNECT --> MSG_REQ
-    MSG_REQ --> MSG_RESP
-    MSG_RESP --> MSG_TIMEOUT
-    MSG_TIMEOUT --> MSG_CLOSE
-    MSG_CLOSE --> [*]
+flowchart TD
+    A["main()"] --> B["Register RegFactory(FAC_REG_FAC_ID)"]
+    B --> C["Register AuthFactory(FAC_AUTH_FAC_ID)"]
+    C --> D["mgr.Start()"]
+    D --> E["Start worker thread"]
+    E --> F["Run message pump"]
+
+    F --> G["FsmMgrTest(FAC_REG_FAC_ID)"]
+    G --> H["Send MSG_INIT to RegFactory"]
+
+    F --> I["FsmMgrTest(FAC_AUTH_FAC_ID)"]
+    I --> J["Send MSG_INIT to AuthFactory"]
+
+    F --> K["FsmMgrTest(unknown factory id)"]
+    K --> L["DispatchMsg returns ERROR"]
+
+    L --> M["mgr.Stop()"]
 ```
 
-### 8.4 状态流
+### 8.3 消息分发流程
+
+```mermaid
+flowchart TD
+    A["SendMsg(CMsg)"] --> B["Push message into _pump"]
+    B --> C["Notify _pump_cv"]
+    C --> D["Cfactory_mgr::Run wakes up"]
+    D --> E["Pop one CMsg"]
+    E --> F["DispatchMsg(msg)"]
+    F --> G{"FindFactory(msg.serviceId)"}
+
+    G -- "Reg factory" --> H["RegFactory::FacMsgPrc"]
+    G -- "Auth factory" --> I["AuthFactory::FacMsgPrc"]
+    G -- "Not found" --> J["Return ERROR"]
+
+    H --> K["Find or create RegFsm"]
+    I --> L["Find or create AuthFsm"]
+
+    K --> M["DispatchToFsm"]
+    L --> M
+
+    M --> N["PrePrcMsg"]
+    N --> O["ProcessMsg"]
+    O --> P["PostPrcMsg"]
+    P --> Q{"state == KILL_FSM?"}
+    Q -- "Yes" --> R["KillFsm"]
+    Q -- "No" --> S["Wait for next message"]
+```
+
+### 8.4 Factory 生命周期图
+
+```mermaid
+flowchart TD
+    A["Factory receives CMsg"] --> B{"msg.fsmId != 0?"}
+
+    B -- "Yes" --> C["FindFsm(fsmId)"]
+    B -- "No" --> D["fsm = nullptr"]
+
+    C --> E{"FSM found?"}
+    D --> E
+
+    E -- "No + msg.type == MSG_INIT" --> F["AddFsm()"]
+    E -- "No + other msg" --> G["Return ERROR"]
+    E -- "Yes" --> H["DispatchToFsm"]
+
+    F --> H
+    H --> I["FSM handles message"]
+    I --> J{"FSM state == KILL_FSM?"}
+    J -- "Yes" --> K["KillFsm"]
+    J -- "No" --> L["Keep FSM alive"]
+```
+
+### 8.5 RegFsm 状态转换图
 
 ```mermaid
 stateDiagram-v2
     [*] --> IDLE
-    IDLE --> WORKING: MSG_INIT
+    IDLE --> WORKING: MSG_INIT / send MSG_CONNECT
+    WORKING --> WORKING: MSG_CONNECT / send MSG_REQ
+    WORKING --> WORKING: MSG_REQ / send MSG_RESP
+    WORKING --> WORKING: MSG_RESP / start MSG_TIMEOUT timer
+    WORKING --> WORKING: MSG_TIMEOUT / send MSG_CLOSE
     WORKING --> KILL_FSM: MSG_CLOSE
-    KILL_FSM --> [*]
+    KILL_FSM --> [*]: factory recycles FSM
 ```
 
-## 9. 类关系
+### 8.6 AuthFsm 状态转换图
+
+```mermaid
+stateDiagram-v2
+    [*] --> IDLE
+    IDLE --> WORKING: MSG_INIT / send MSG_CONNECT
+    WORKING --> WORKING: MSG_CONNECT / send MSG_REQ
+    WORKING --> WORKING: MSG_REQ / send MSG_RESP
+    WORKING --> KILL_FSM: MSG_RESP / send MSG_CLOSE
+    KILL_FSM --> [*]: factory recycles FSM
+```
+
+### 8.7 定时器流程图
+
+```mermaid
+flowchart TD
+    A["RegFsm handles MSG_RESP"] --> B["StartNextTimer(MSG_TIMEOUT, delayMs)"]
+    B --> C["Cfsm::StartTimer"]
+    C --> D["Cfactory_mgr::StartTimer"]
+    D --> E["Create CTimerCtrl"]
+    E --> F["Start timer thread"]
+    F --> G["sleep_for(timeoutMs)"]
+    G --> H{"timer active?"}
+    H -- "Yes" --> I["SendMsg(MSG_TIMEOUT)"]
+    H -- "No" --> J["Do nothing"]
+    I --> K["Message pump dispatches timeout message"]
+```
+
+### 8.8 类关系图
 
 ```mermaid
 classDiagram
-    class CMsg {
-        +MsgType type
-        +vector~char~ msg
+    class Cfactory_mgr {
+        -vector~Cfactory*~ _fac_list
+        -queue~CMsg~ _pump
+        -vector~CTimerCtrl~ _timer_list
+        -thread _worker_thread
+        +RegisterFactory(factory)
+        +SendMsg(msg)
+        +Start()
+        +Stop()
+        +Join()
+        +StartTimer(timeoutMs, msg)
+    }
+
+    class Cfactory {
+        -unsigned int _facId
+        -Cfactory_mgr* _facMgr
+        -vector~Cfsm*~ _fsm_list
+        +CreateFsm()
+        +FacMsgPrc(msg)
+        +DispatchToFsm(fsm, msg)
+        +KillFsm(fsmId)
     }
 
     class Cfsm {
+        -unsigned int _fsmId
         -Tstate _state
-        -EerrNo _prc
-        +Cfsm(Tstate state)
-        +~Cfsm()
-        +_changeState(Tstate state) void
-        +GetState() Tstate
-        +SetState(Tstate state) void
-        +PrePrcMsg(CMsg& pBuf) void
-        +ProcessMsg(CMsg& pMsg) EerrNo
-        +PostPrcMsg(CMsg& pBuf) void
-        +Create() EerrNo
-        +Destroy() EerrNo
-        +Destory() EerrNo
-        +Print(bool detailFlag) void
+        -Cfactory* _factory
+        +ProcessMsg(msg)
+        +SetState(state)
+        +SendMsg(msg)
+        +StartTimer(timeoutMs, msg)
     }
 
-    class RegFsm {
-        +RegFsm()
-        +PrePrcMsg(CMsg& pBuf) void
-        +ProcessMsg(CMsg& pMsg) EerrNo
-        +PostPrcMsg(CMsg& pBuf) void
-        +Destroy() EerrNo
-        +Destory() EerrNo
-        +Print(bool detailFlag) void
+    class RegFactory
+    class AuthFactory
+    class RegFsm
+    class AuthFsm
+    class CMsg {
+        +MsgType type
+        +unsigned int serviceId
+        +unsigned int fsmId
+        +unsigned int sessionId
+        +vector~char~ msg
     }
 
+    Cfactory_mgr --> Cfactory
+    Cfactory <|-- RegFactory
+    Cfactory <|-- AuthFactory
+    Cfactory --> Cfsm
     Cfsm <|-- RegFsm
-    RegFsm ..> CMsg
-    Cfsm ..> CMsg
+    Cfsm <|-- AuthFsm
+    Cfactory_mgr --> CMsg
+    Cfsm --> CMsg
 ```
 
-## 10. 接口设计说明
+框架速记：
 
-### 10.1 `PrePrcMsg`
+1. 外部只投递 `CMsg`。
+2. `Cfactory_mgr` 按 `serviceId` 查找目标 factory。
+3. factory 按 `fsmId` 查找已有 FSM，或在 `MSG_INIT` 时创建新 FSM。
+4. FSM 根据“当前状态 + 当前事件”查表处理，并投递后续事件。
+5. FSM 进入 `KILL_FSM` 后由 factory 统一回收。
+
+## 9. 接口设计说明
+
+### 9.1 `PrePrcMsg`
 
 前处理接口。
 
@@ -466,15 +621,15 @@ classDiagram
 - 统计计数；
 - 消息解码。
 
-### 10.2 `ProcessMsg`
+### 9.2 `ProcessMsg`
 
 主处理接口。
 
 当前行为：
 
-- `RegFsm::ProcessMsg` 先检查当前状态；
+- 业务 FSM 的 `ProcessMsg` 先检查当前状态；
 - 调用 `Cfsm::ProcessMsg`；
-- 根据 `CMsg::type` 执行转移；
+- 根据“当前状态 + `CMsg::type`”查表执行转移；
 - 返回 `SUCCESS` 或 `ERROR`。
 
 适合放置的逻辑：
@@ -485,13 +640,13 @@ classDiagram
 - 错误处理；
 - 调用外部服务或协议处理函数。
 
-### 10.3 `PostPrcMsg`
+### 9.3 `PostPrcMsg`
 
 后处理接口。
 
 当前行为：
 
-- `RegFsm::PostPrcMsg` 调用 `Cfsm::PostPrcMsg`；
+- 业务 FSM 的 `PostPrcMsg` 调用 `Cfsm::PostPrcMsg`；
 - 基类打印 `"Cfsm::PostPrcMsg"`。
 
 适合放置的逻辑：
@@ -502,7 +657,7 @@ classDiagram
 - 上报统计信息；
 - 清理消息缓存。
 
-### 10.4 `Create`
+### 9.4 `Create`
 
 状态机初始化接口。
 
@@ -519,7 +674,7 @@ classDiagram
 - 分配资源；
 - 初始化内部队列。
 
-### 10.5 `Destroy`
+### 9.5 `Destroy`
 
 状态机销毁接口。
 
@@ -538,28 +693,9 @@ classDiagram
 - 清空队列；
 - 输出最终状态。
 
-## 11. 当前代码中的设计问题
+## 10. 当前代码中的设计问题
 
-### 11.1 构造函数初始化策略
-
-`Cfsm` 构造函数签名是：
-
-```cpp
-explicit Cfsm(Tstate state = IDLE);
-```
-
-当前实现会在构造函数初始化列表中使用传入的 `state`：
-
-```cpp
-Cfsm::Cfsm(Tstate state)
-    : _fsmId(0), _state(state), _prc(EerrNo::INIT), _factory(nullptr)
-{
-}
-```
-
-`Create()` 不再重置 `_state`，只负责初始化处理结果等生命周期字段。这样可以避免构造阶段和工厂创建阶段重复初始化状态。
-
-### 11.2 纯虚函数提供默认实现
+### 10.1 纯虚函数提供默认实现
 
 `Cfsm.h` 中这几个接口被声明为纯虚函数：
 
@@ -579,7 +715,7 @@ virtual void PostPrcMsg(CMsg& pBuf) = 0;
 
 如果这是有意设计，建议在注释中说明。否则容易让维护者困惑。
 
-### 11.3 `Destory` 兼容问题
+### 10.2 `Destory` 兼容问题
 
 旧接口名是 `Destory`，正确英文通常应为 `Destroy`。当前代码已经新增 `Destroy()`，并保留 `Destory()` 作为兼容包装。
 
@@ -591,46 +727,51 @@ virtual void PostPrcMsg(CMsg& pBuf) = 0;
 
 建议尽早统一修正。
 
-### 11.4 输入消息和下一消息混用
+### 10.3 定时器实现仍是原型版
 
-当前 `ProcessMsg` 会直接修改 `pMsg.type`：
-
-```cpp
-pMsg.type = MSG_CONNECT;
-```
-
-这让流程很简单，但也带来一个问题：同一个字段既表示“当前输入事件”，又表示“下一轮要处理的事件”。
-
-当流程变复杂后，可能会出现以下问题：
-
-- 调试时不容易知道原始输入是什么；
-- 错误处理时无法保留失败消息；
-- 多事件队列场景下不容易扩展；
-- 状态机变成自驱动模式，而不是外部事件驱动模式。
-
-### 11.5 状态和消息没有强约束
-
-当前 `RegFsm` 只根据消息类型分支，没有严格检查当前状态是否允许处理该消息。
-
-例如理论上可以在 `IDLE` 状态下处理 `MSG_RESP`，当前代码并不会阻止。
-
-如果后续要作为通用框架，应增加“当前状态 + 当前消息”的联合校验。
-
-### 11.6 日志没有统一格式
-
-当前日志直接使用 `std::cout` 输出，且部分输出没有换行。
-
-例如：
+当前 `Cfactory_mgr::StartTimer` 使用“一个 timer 一个线程”的方式：
 
 ```cpp
-std::cout << "[MSG_INIT]: start reg service";
+std::thread timerThread([this, timeoutMs, timeoutMsg, timerCtrl]() {
+    std::this_thread::sleep_for(std::chrono::milliseconds(timeoutMs));
+    if (timerCtrl->active.load())
+    {
+        SendMsg(timeoutMsg);
+    }
+});
 ```
 
-这会导致多条日志连在同一行。
+该方式适合当前原型，但不适合大量定时器场景。
 
-建议至少统一加 `std::endl` 或 `'\n'`。如果项目扩大，可以引入轻量日志封装。
+主要限制：
 
-### 11.7 构建系统已补充
+- 定时器数量多时会创建大量线程；
+- `StopTimer` 不会中断 `sleep_for`，只会阻止到期后投递消息；
+- 析构时需要等待 timer 线程结束。
+
+### 10.4 错误码粒度较粗
+
+当前错误码只有：
+
+```cpp
+INIT,
+SUCCESS,
+ERROR
+```
+
+这能满足 demo，但不能区分具体错误来源，例如：
+
+- 未找到 factory；
+- 未找到 FSM；
+- 非法状态转移；
+- 定时器创建失败；
+- 消息泵已停止。
+
+### 10.5 日志系统仍较简单
+
+当前日志直接使用 `std::cout` 输出。虽然主要日志已经有换行，但还没有统一日志级别、模块名、时间戳、线程 ID 或可关闭的调试开关。
+
+### 10.6 构建系统已补充
 
 项目当前已经新增根目录 `CMakeLists.txt`，可以构建 demo 和测试入口。
 
@@ -641,9 +782,9 @@ std::cout << "[MSG_INIT]: start reg service";
 - 接入 CI；
 - 按库和示例程序拆分 target。
 
-## 12. 推荐演进方案
+## 11. 推荐演进方案
 
-### 12.1 第一阶段：整理当前代码
+### 11.1 第一阶段：整理当前代码
 
 目标是让当前 demo 更规范，但不改变整体设计。
 
@@ -651,12 +792,11 @@ std::cout << "[MSG_INIT]: start reg service";
 
 1. 持续完善 `CMakeLists.txt`。
 2. 优先使用 `Destroy`，逐步清理旧的 `Destory` 兼容接口。
-3. 修正构造函数初始状态参数不生效的问题。
-4. 给日志补充换行。
-5. 清理未使用宏或补充注释说明。
-6. 在 README 中增加构建和运行说明。
+3. 清理未使用宏或补充注释说明。
+4. 将 `RegFsm`、`AuthFsm` 的共同转移表处理逻辑抽象出来。
+5. 将 `Cfactory` 的路由公共逻辑进一步复用，减少具体 factory 重复代码。
 
-### 12.2 第二阶段：增强可测试性
+### 11.2 第二阶段：增强可测试性
 
 目标是让状态转移可以被自动验证。
 
@@ -675,7 +815,7 @@ std::cout << "[MSG_INIT]: start reg service";
 - 完整流程最终进入 `KILL_FSM`；
 - 非法消息返回 `ERROR`。
 
-### 12.3 第三阶段：引入显式转移结果
+### 11.3 第三阶段：引入显式转移结果
 
 当前接口返回 `EerrNo`，下一消息通过修改 `CMsg` 获得。
 
@@ -696,7 +836,7 @@ struct FsmResult
 - 下一状态是什么；
 - 是否产生下一事件。
 
-### 12.4 第四阶段：表驱动状态机
+### 11.4 第四阶段：增强表驱动状态机
 
 当前 `RegFsm` 已经从 `switch` 演进为表驱动。后续如果流程继续变多，可以把转移表进一步抽象到基类或配置层。
 
@@ -719,21 +859,21 @@ struct Transition
 - 更容易做自动化测试；
 - 可以在配置文件或表中描述流程。
 
-### 12.5 第五阶段：框架化能力
+### 11.5 第五阶段：框架化能力
 
-如果项目要发展成真正的 FSM 框架，可以继续增加：
+如果项目要从当前原型继续发展成更通用的 FSM 框架，可以重点增强：
 
 1. 状态机基类模板化。
-2. 状态机工厂。
-3. 状态机实例管理器。
-4. 事件队列。
-5. 定时器管理。
-6. 状态进入和退出回调。
-7. 统一日志接口。
-8. 统一错误处理策略。
-9. DOT/Mermaid 状态图导出。
+2. 通用转移表执行器，减少 `RegFsm`、`AuthFsm` 中的重复代码。
+3. 更完整的定时器管理器，避免一个定时器一个线程。
+4. 显式状态进入和退出回调语义。
+5. 统一日志接口。
+6. 统一错误处理策略。
+7. 消息缓冲区池和资源池的真实落地。
+8. DOT/Mermaid 状态图导出。
+9. 性能压测和并发测试。
 
-## 13. 建议的目标架构
+## 12. 建议的目标架构
 
 如果后续要从 demo 演进为框架，可以参考以下分层：
 
@@ -759,15 +899,17 @@ flowchart TD
 | 消息模型 | 定义消息类型、载荷和元数据。 |
 | 生命周期管理 | 管理创建、销毁、资源释放。 |
 
-## 14. 扩展示例：新增一个状态机
+## 13. 扩展示例：新增一个状态机
 
 如果要新增一个业务状态机，例如 `LoginFsm`，可以按当前模式执行：
 
-1. 在 `inc` 下新增 `LoginFsm.h`。
-2. 在 `src` 下新增 `LoginFsm.cpp`。
-3. 继承 `Cfsm`。
-4. 实现 `PrePrcMsg`、`ProcessMsg`、`PostPrcMsg`。
-5. 在 `ProcessMsg` 中定义自己的消息转移。
+1. 在 `common.h` 中新增业务 factory ID，例如 `FAC_LOGIN_FAC_ID`。
+2. 在 `inc` 下新增 `LoginFsm.h` 和 `LoginFactory.h`。
+3. 在 `src` 下新增 `LoginFsm.cpp` 和 `LoginFactory.cpp`。
+4. `LoginFsm` 继承 `Cfsm`，实现 `PrePrcMsg`、`ProcessMsg`、`PostPrcMsg`。
+5. `LoginFactory` 继承 `Cfactory`，实现创建、查找和路由 `LoginFsm` 的逻辑。
+6. 在 `main.cpp` 或应用入口中创建 `LoginFactory`，并调用 `RegisterFactory` 注册到 `Cfactory_mgr`。
+7. 在 `CMakeLists.txt` 中加入新增源文件。
 
 示例结构：
 
@@ -783,9 +925,9 @@ public:
 };
 ```
 
-这种方式简单直接，适合小规模状态机。若状态机数量变多，则建议引入统一注册和工厂机制。
+这种方式简单直接，适合小规模状态机。若状态机数量继续变多，建议抽象公共 factory 路由逻辑和转移表工具，减少新增业务时的重复代码。
 
-## 15. 错误处理建议
+## 14. 错误处理建议
 
 当前错误处理只有 `ERROR`，粒度较粗。后续可以考虑细分错误码：
 
@@ -810,11 +952,11 @@ enum EerrNo
 - 内部错误；
 - 外部依赖失败。
 
-## 16. 日志建议
+## 15. 日志建议
 
 短期建议：
 
-- 每条日志统一换行；
+- 保持每条日志独占一行；
 - 日志中包含状态、消息、处理结果；
 - 错误日志中包含失败原因。
 
@@ -831,14 +973,13 @@ enum EerrNo
 - 支持输出文件名和行号；
 - 支持关闭或打开调试日志。
 
-## 17. 构建建议
+## 16. 构建说明
 
-建议添加根目录 `CMakeLists.txt`。
+项目已经添加根目录 `CMakeLists.txt`。
 
-一个可能的目标划分：
+当前目标划分：
 
 ```text
-reg_fsm_lib      状态机库
 reg_fsm_demo     示例程序
 reg_fsm_tests    单元测试
 ```
@@ -850,82 +991,84 @@ cmake -S . -B build
 cmake --build build
 ```
 
-## 18. 测试建议
+## 17. 测试建议
 
-建议增加以下测试用例：
+当前已有 `tests/framework_tests.cpp`，覆盖了基础消息默认值、非法转移和 manager/factory/fsm 主链路。后续建议继续补充以下测试：
 
 | 测试项 | 预期 |
 |---|---|
-| 创建 `CMsg` | 默认 `type` 为 `MSG_INIT` |
-| 创建 `RegFsm` | 默认状态为 `IDLE` |
-| 处理 `MSG_INIT` | 状态变为 `WORKING`，消息变为 `MSG_CONNECT` |
-| 完整循环处理 | 最终状态为 `KILL_FSM` |
-| 非法消息 | 返回 `ERROR` |
-| `MSG_CLOSE` | 状态变为 `KILL_FSM` |
+| `RegFsm` 完整流程 | 最终进入 `KILL_FSM` 并被 `RegFactory` 回收 |
+| `AuthFsm` 完整流程 | 最终进入 `KILL_FSM` 并被 `AuthFactory` 回收 |
+| 未知 `serviceId` | `Cfactory_mgr::DispatchMsg` 返回 `ERROR` |
+| 未知 `fsmId` + 非 `MSG_INIT` | 对应 factory 返回 `ERROR` |
+| `StartTimer` + `StopTimer` | timer 被取消后不再投递消息 |
+| 多个 factory 同时注册 | 不同 `serviceId` 路由到不同 factory |
 
-如果暂时不引入测试框架，也可以先写一个简单的断言版 demo。
+如果后续引入 GoogleTest，可以把当前 `assert` 测试迁移为更清晰的测试用例。
 
-## 19. 当前示例预期输出
+## 18. 当前示例预期输出
 
-当前示例大致处理顺序如下：
+当前示例会注册 `RegFactory` 和 `AuthFactory`，并发送三条初始消息：
+
+1. `FAC_REG_FAC_ID`：进入注册流程；
+2. `FAC_AUTH_FAC_ID`：进入认证流程；
+3. `FAC_AUTH_FAC_ID + 1`：进入未知 factory 错误路径。
+
+输出中会看到类似日志：
 
 ```text
-Cfsm::PrePrcMsg
-Cfsm::ProcessMsg
-[MSG_INIT]: start reg service
-Cfsm::ProcessMsg
-[MSG_CONNECT]: start reg service
-Cfsm::ProcessMsg
-[MSG_REQ]: start reg service
-Cfsm::ProcessMsg
-[MSG_RESP]: start reg service
-Cfsm::ProcessMsg
-[MSG_TIMEOUT]: start reg service
-Cfsm::ProcessMsg
-[MSG_CLOSE]: start reg service
-Cfsm::PostPrcMsg
-Cfsm::Destroy
+Cfactory_mgr::RegisterFactory facId=1
+Cfactory_mgr::RegisterFactory facId=3
+[REG][MSG_INIT]: start reg service
+[AUTH][MSG_INIT]: prepare auth context
+Cfactory_mgr::DispatchMsg unknown serviceId=4
+[REG][MSG_TIMEOUT]: timeout reg service
+Cfactory::KillFsm facId=1 fsmId=...
+Cfactory::KillFsm facId=3 fsmId=...
 ```
 
-由于当前部分 `std::cout` 没有输出换行，实际控制台中可能不是每条日志独占一行。
+具体顺序可能受后台消息泵和定时器线程影响，但整体会体现注册流程、认证流程和错误路径三类行为。
 
-## 20. 总结
+## 19. 总结
 
-`FsmFramework` 当前是一个精简的有限状态机原型。它已经具备以下基础：
+`FsmFramework` 当前是一个事件驱动 FSM 框架原型。它已经具备以下基础：
 
-- 抽象状态机基类；
-- 具体业务状态机；
-- 消息驱动处理；
-- 状态推进；
-- 简单生命周期接口。
+- `Cfactory_mgr -> Cfactory -> Cfsm` 三层结构；
+- `RegFactory/RegFsm` 注册业务流程；
+- `AuthFactory/AuthFsm` 认证业务流程；
+- 基于 `serviceId` 和 `fsmId` 的消息路由；
+- 后台消息泵和简单定时器；
+- 表驱动状态转移；
+- FSM 创建、分发和回收。
 
 当前最值得优先处理的问题是：
 
-1. 增加构建系统；
-2. 逐步清理 `Destory` 兼容接口；
-3. 明确构造函数初始状态语义；
-4. 补充测试；
-5. 统一日志输出格式；
-6. 继续增强状态转移表的通用性。
+1. 逐步清理 `Destory` 兼容接口；
+2. 引入更细粒度错误码；
+3. 将转移表处理逻辑抽象为可复用组件；
+4. 将定时器从“一 timer 一线程”升级为统一 TimerManager；
+5. 补充更强的测试断言；
+6. 引入统一日志模块。
 
-如果项目目标只是学习状态机，当前结构已经足够直观。如果目标是做可复用框架，建议下一步从构建系统、测试和状态转移模型这三件事开始推进。
+如果项目目标是学习状态机，当前结构已经足够直观。如果目标是做可复用框架，建议下一步从错误码、日志、测试和定时器管理这几件事继续推进。
 
-## 21. 当前框架实现进展
+## 20. 当前框架实现进展
 
 当前代码已经在原始 demo 基础上实现了第一版框架化改造，核心能力包括：
 
 1. `Cfactory_mgr` 作为顶层管理器，负责工厂注册、消息泵、消息分发、停止控制和定时器事件。
 2. `Cfactory` 作为状态机工厂基类，负责 FSM 创建、查找、消息派发和生命周期回收。
 3. `RegFactory` 作为注册业务工厂，负责把注册类消息路由到 `RegFsm`。
-4. `Cfsm` 作为状态机基类，维护 `fsmId`、状态、所属工厂、`_save` 和 `_hold` 消息暂存队列。
-5. `RegFsm` 已从 `switch` 分支改造成表驱动状态转移。
-6. `MSG_RESP -> MSG_TIMEOUT` 已通过 `Cfactory_mgr::StartTimer` 定时器事件触发。
-7. `main.cpp` 已改为通过 `Cfactory_mgr` 投递初始消息，由后台消息泵驱动完整流程。
-8. 项目新增 `CMakeLists.txt` 和 `tests/framework_tests.cpp`，用于构建 demo 和基础测试。
-9. `Cfactory_mgr` 已新增 `Start/Stop/Join`，调用方不需要分散管理工作线程。
-10. `Cfsm` 已新增受保护的 `SendMsg/StartTimer/StopTimer`，业务 FSM 不再直接依赖 manager。
-11. `Cfactory` 已为 FSM 列表增加锁保护，降低并发访问风险。
-12. `Cfsm::SetState` 已支持 `OnExitState/OnEnterState` 状态切换钩子。
+4. `AuthFactory` 作为认证业务工厂，负责把认证类消息路由到 `AuthFsm`。
+5. `Cfsm` 作为状态机基类，维护 `fsmId`、状态、所属工厂、`_save` 和 `_hold` 消息暂存队列。
+6. `RegFsm` 和 `AuthFsm` 都使用表驱动状态转移。
+7. `RegFsm` 的 `MSG_RESP -> MSG_TIMEOUT` 已通过 `Cfactory_mgr::StartTimer` 定时器事件触发。
+8. `main.cpp` 已通过 `Cfactory_mgr` 注册两个 factory，并向两个不同 `serviceId` 投递初始消息。
+9. 项目新增 `CMakeLists.txt` 和 `tests/framework_tests.cpp`，用于构建 demo 和基础测试。
+10. `Cfactory_mgr` 已新增 `Start/Stop/Join`，调用方不需要分散管理工作线程。
+11. `Cfsm` 已新增受保护的 `SendMsg/StartTimer/StopTimer`，业务 FSM 不再直接依赖 manager。
+12. `Cfactory` 已为 FSM 列表增加锁保护，降低并发访问风险。
+13. `Cfsm::SetState` 已支持 `OnExitState/OnEnterState` 状态切换钩子。
 
 当前运行链路如下：
 
@@ -935,22 +1078,22 @@ main
   -> Cfactory_mgr::Start
   -> Cfactory_mgr::Run
   -> Cfactory_mgr::SendMsg(MSG_INIT)
-  -> RegFactory::FacMsgPrc
+  -> RegFactory::FacMsgPrc / AuthFactory::FacMsgPrc
   -> Cfactory::AddFsm
-  -> RegFsm::ProcessMsg
+  -> RegFsm::ProcessMsg / AuthFsm::ProcessMsg
   -> Cfsm::SendMsg / StartTimer
   -> MSG_CLOSE 后 Cfactory::KillFsm
 ```
 
-## 22. 后续可继续增强的方向
+## 21. 后续可继续增强的方向
 
 虽然当前版本已经具备框架雏形，但如果要进一步提升简历竞争力和工程完整度，建议继续补充：
 
 1. 更细粒度错误码，例如 `INVALID_STATE`、`INVALID_MSG`、`TIMER_ERROR`。
-2. `Cfactory` 内部 FSM 列表的并发保护。
-3. 定时器线程的条件变量唤醒机制，避免长时间 sleep 阻塞析构等待。
-4. 更完整的单元测试框架，例如 GoogleTest。
-5. 压测用例，例如大量 FSM 实例和大量消息投递。
-6. 消息缓冲区池 `Cmsgbuf`，替代直接拷贝 `std::vector<char>`。
-7. 状态进入和退出回调，例如 `OnEnterState`、`OnExitState`。
-8. 状态图导出能力，用转移表生成 Mermaid 或 DOT。
+2. 定时器线程的条件变量唤醒机制，避免长时间 sleep 阻塞析构等待。
+3. 更完整的单元测试框架，例如 GoogleTest。
+4. 压测用例，例如大量 FSM 实例和大量消息投递。
+5. 消息缓冲区池 `Cmsgbuf`，替代直接拷贝 `std::vector<char>`。
+6. 状态进入和退出回调中的真实业务处理。
+7. 状态图导出能力，用转移表生成 Mermaid 或 DOT。
+8. 将 `RegFsm` 和 `AuthFsm` 的公共转移表查找逻辑抽象为通用组件。
