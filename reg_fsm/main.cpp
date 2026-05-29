@@ -7,6 +7,7 @@
 #include <ostream>
 #include <thread>
 
+#include "inc/AuthFactory.h"
 #include "inc/Cfactory_mgr.h"
 #include "inc/RegFactory.h"
 
@@ -27,7 +28,7 @@ void FsmMgrTest(const U32 serviceId)
 
 int main() {
     mgr.RegisterFactory(new RegFactory(FAC_REG_FAC_ID));
-    mgr.RegisterFactory(new RegFactory(FAC_AUTH_FAC_ID));
+    mgr.RegisterFactory(new AuthFactory(FAC_AUTH_FAC_ID));
 
     // Let the manager own its background message-pump thread.
     mgr.Start();

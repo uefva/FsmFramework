@@ -11,6 +11,8 @@ enable_testing()
 # Demo executable for the full manager/factory/fsm registration flow.
 add_executable(reg_fsm_demo
     reg_fsm/main.cpp
+    reg_fsm/src/AuthFactory.cpp
+    reg_fsm/src/AuthFsm.cpp
     reg_fsm/src/CMsg.cpp
     reg_fsm/src/Cfsm.cpp
     reg_fsm/src/Cfactory.cpp
@@ -28,6 +30,8 @@ target_link_libraries(reg_fsm_demo PRIVATE Threads::Threads)
 # Basic tests for message defaults, invalid transitions, and the main flow.
 add_executable(reg_fsm_tests
     tests/framework_tests.cpp
+    reg_fsm/src/AuthFactory.cpp
+    reg_fsm/src/AuthFsm.cpp
     reg_fsm/src/CMsg.cpp
     reg_fsm/src/Cfsm.cpp
     reg_fsm/src/Cfactory.cpp

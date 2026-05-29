@@ -23,12 +23,12 @@ struct RegTransition
 };
 
 const RegTransition REG_TRANSITIONS[] = {
-    {IDLE, MSG_INIT, WORKING, true, MSG_CONNECT, 0, "[MSG_INIT]: start reg service"},
-    {WORKING, MSG_CONNECT, WORKING, true, MSG_REQ, 0, "[MSG_CONNECT]: connect reg service"},
-    {WORKING, MSG_REQ, WORKING, true, MSG_RESP, 0, "[MSG_REQ]: request reg service"},
-    {WORKING, MSG_RESP, WORKING, true, MSG_TIMEOUT, 10, "[MSG_RESP]: response reg service"},
-    {WORKING, MSG_TIMEOUT, WORKING, true, MSG_CLOSE, 0, "[MSG_TIMEOUT]: timeout reg service"},
-    {WORKING, MSG_CLOSE, KILL_FSM, false, MSG_CLOSE, 0, "[MSG_CLOSE]: close reg service"},
+    {IDLE, MSG_INIT, WORKING, true, MSG_CONNECT, 0, "[REG][MSG_INIT]: start reg service"},
+    {WORKING, MSG_CONNECT, WORKING, true, MSG_REQ, 0, "[REG][MSG_CONNECT]: connect reg service"},
+    {WORKING, MSG_REQ, WORKING, true, MSG_RESP, 0, "[REG][MSG_REQ]: request reg service"},
+    {WORKING, MSG_RESP, WORKING, true, MSG_TIMEOUT, 10, "[REG][MSG_RESP]: response reg service"},
+    {WORKING, MSG_TIMEOUT, WORKING, true, MSG_CLOSE, 0, "[REG][MSG_TIMEOUT]: timeout reg service"},
+    {WORKING, MSG_CLOSE, KILL_FSM, false, MSG_CLOSE, 0, "[REG][MSG_CLOSE]: close reg service"},
 };
 
 const RegTransition* FindTransition(Tstate state, MsgType event)
