@@ -9,6 +9,8 @@
 
 namespace
 {
+using RegAction = void (RegFsm::*)();
+
 // Registration flow transition rule:
 // when from + event matches, switch to to and optionally post nextEvent.
 struct RegTransition
@@ -20,29 +22,21 @@ struct RegTransition
     MsgType nextEvent;
     unsigned int delayMs;
     const char* log;
+    RegAction action;
 };
 
-const RegTransition REG_TRANSITIONS[] = {
-    {IDLE, MSG_INIT, WORKING, true, MSG_CONNECT, 0, "[REG][MSG_INIT]: start reg service"},
-    {WORKING, MSG_CONNECT, WORKING, true, MSG_REQ, 0, "[REG][MSG_CONNECT]: connect reg service"},
-    {WORKING, MSG_REQ, WORKING, true, MSG_RESP, 0, "[REG][MSG_REQ]: request reg service"},
-    {WORKING, MSG_RESP, WORKING, true, MSG_TIMEOUT, 10, "[REG][MSG_RESP]: response reg service"},
-    {WORKING, MSG_TIMEOUT, WORKING, true, MSG_CLOSE, 0, "[REG][MSG_TIMEOUT]: timeout reg service"},
-    {WORKING, MSG_CLOSE, KILL_FSM, false, MSG_CLOSE, 0, "[REG][MSG_CLOSE]: close reg service"},
-};
-
-const RegTransition* FindTransition(Tstate state, MsgType event)
+const RegTransition* FindTransition(const RegTransition* transitions,
+                                    unsigned int transitionCount,
+                                    Tstate state,
+                                    MsgType event)
 {
     // Linear lookup is enough while the transition table is small.
-    const unsigned int transitionCount =
-        sizeof(REG_TRANSITIONS) / sizeof(REG_TRANSITIONS[0]);
-
     for (unsigned int index = 0; index < transitionCount; ++index)
     {
-        if ((REG_TRANSITIONS[index].from == state) &&
-            (REG_TRANSITIONS[index].event == event))
+        if ((transitions[index].from == state) &&
+            (transitions[index].event == event))
         {
-            return &REG_TRANSITIONS[index];
+            return &transitions[index];
         }
     }
 
@@ -82,6 +76,17 @@ void RegFsm::PrePrcMsg(CMsg& pBuf)
 
 EerrNo RegFsm::ProcessMsg(CMsg& pMsg)
 {
+    const RegTransition REG_TRANSITIONS[] = {
+        {IDLE, MSG_INIT, WORKING, true, MSG_CONNECT, 0, "[REG][MSG_INIT]: start reg service", &RegFsm::HandleInit},
+        {WORKING, MSG_CONNECT, WORKING, true, MSG_REQ, 0, "[REG][MSG_CONNECT]: connect reg service", &RegFsm::HandleConnect},
+        {WORKING, MSG_REQ, WORKING, true, MSG_RESP, 0, "[REG][MSG_REQ]: request reg service", &RegFsm::HandleReq},
+        {WORKING, MSG_RESP, WORKING, true, MSG_TIMEOUT, 10, "[REG][MSG_RESP]: response reg service", &RegFsm::HandleResp},
+        {WORKING, MSG_TIMEOUT, WORKING, true, MSG_CLOSE, 0, "[REG][MSG_TIMEOUT]: timeout reg service", &RegFsm::HandleTimeout},
+        {WORKING, MSG_CLOSE, KILL_FSM, false, MSG_CLOSE, 0, "[REG][MSG_CLOSE]: close reg service", &RegFsm::HandleClose},
+    };
+    const unsigned int transitionCount =
+        sizeof(REG_TRANSITIONS) / sizeof(REG_TRANSITIONS[0]);
+
     // Terminal FSMs no longer process messages; the factory owns destruction.
     if (KILL_FSM == this->GetState())
     {
@@ -95,7 +100,7 @@ EerrNo RegFsm::ProcessMsg(CMsg& pMsg)
     };
 
     // Use current state + current event to avoid accepting invalid transitions.
-    const RegTransition* transition = FindTransition(this->GetState(), pMsg.type);
+    const RegTransition* transition = FindTransition(REG_TRANSITIONS, transitionCount, this->GetState(), pMsg.type);
     if (nullptr == transition)
     {
         std::cout << "RegFsm::ProcessMsg invalid transition, state="
@@ -105,6 +110,10 @@ EerrNo RegFsm::ProcessMsg(CMsg& pMsg)
 
     // Apply the transition first, then post the next event if configured.
     std::cout << transition->log << std::endl;
+    if (nullptr != transition->action)
+    {
+        (this->*(transition->action))();
+    }
     this->SetState(transition->to);
 
     if (transition->hasNext)
@@ -125,6 +134,36 @@ EerrNo RegFsm::ProcessMsg(CMsg& pMsg)
 void RegFsm::PostPrcMsg(CMsg& pBuf)
 {
     Cfsm::PostPrcMsg(pBuf);
+}
+
+void RegFsm::HandleInit()
+{
+    std::cout << "[REG][MSG_INIT]: initialize registration context" << std::endl;
+}
+
+void RegFsm::HandleConnect()
+{
+    std::cout << "[REG][MSG_CONNECT]: prepare registration connection" << std::endl;
+}
+
+void RegFsm::HandleReq()
+{
+    std::cout << "[REG][MSG_REQ]: build registration request" << std::endl;
+}
+
+void RegFsm::HandleResp()
+{
+    std::cout << "[REG][MSG_RESP]: process registration response" << std::endl;
+}
+
+void RegFsm::HandleTimeout()
+{
+    std::cout << "[REG][MSG_TIMEOUT]: handle registration timeout" << std::endl;
+}
+
+void RegFsm::HandleClose()
+{
+    std::cout << "[REG][MSG_CLOSE]: release registration context" << std::endl;
 }
 
 EerrNo RegFsm::Destroy()

@@ -11,6 +11,11 @@ class AuthFsm : public Cfsm
 {
 private:
     EerrNo SendNextMsg(const CMsg& currentMsg, MsgType nextType);
+    void HandleInit();
+    void HandleConnect();
+    void HandleReq();
+    void HandleResp();
+    void HandleClose();
 
 public:
     explicit AuthFsm();

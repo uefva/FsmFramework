@@ -9,6 +9,8 @@
 
 namespace
 {
+using AuthAction = void (AuthFsm::*)();
+
 // Authentication flow transition rule.
 struct AuthTransition
 {
@@ -18,27 +20,20 @@ struct AuthTransition
     bool hasNext;
     MsgType nextEvent;
     const char* log;
+    AuthAction action;
 };
 
-const AuthTransition AUTH_TRANSITIONS[] = {
-    {IDLE, MSG_INIT, WORKING, true, MSG_CONNECT, "[AUTH][MSG_INIT]: prepare auth context"},
-    {WORKING, MSG_CONNECT, WORKING, true, MSG_REQ, "[AUTH][MSG_CONNECT]: connect auth service"},
-    {WORKING, MSG_REQ, WORKING, true, MSG_RESP, "[AUTH][MSG_REQ]: verify credentials"},
-    {WORKING, MSG_RESP, WORKING, true, MSG_CLOSE, "[AUTH][MSG_RESP]: auth success"},
-    {WORKING, MSG_CLOSE, KILL_FSM, false, MSG_CLOSE, "[AUTH][MSG_CLOSE]: close auth flow"},
-};
-
-const AuthTransition* FindTransition(Tstate state, MsgType event)
+const AuthTransition* FindTransition(const AuthTransition* transitions,
+                                     unsigned int transitionCount,
+                                     Tstate state,
+                                     MsgType event)
 {
-    const unsigned int transitionCount =
-        sizeof(AUTH_TRANSITIONS) / sizeof(AUTH_TRANSITIONS[0]);
-
     for (unsigned int index = 0; index < transitionCount; ++index)
     {
-        if ((AUTH_TRANSITIONS[index].from == state) &&
-            (AUTH_TRANSITIONS[index].event == event))
+        if ((transitions[index].from == state) &&
+            (transitions[index].event == event))
         {
-            return &AUTH_TRANSITIONS[index];
+            return &transitions[index];
         }
     }
 
@@ -66,6 +61,16 @@ void AuthFsm::PrePrcMsg(CMsg& pBuf)
 
 EerrNo AuthFsm::ProcessMsg(CMsg& pMsg)
 {
+    const AuthTransition AUTH_TRANSITIONS[] = {
+        {IDLE, MSG_INIT, WORKING, true, MSG_CONNECT, "[AUTH][MSG_INIT]: prepare auth context", &AuthFsm::HandleInit},
+        {WORKING, MSG_CONNECT, WORKING, true, MSG_REQ, "[AUTH][MSG_CONNECT]: connect auth service", &AuthFsm::HandleConnect},
+        {WORKING, MSG_REQ, WORKING, true, MSG_RESP, "[AUTH][MSG_REQ]: verify credentials", &AuthFsm::HandleReq},
+        {WORKING, MSG_RESP, WORKING, true, MSG_CLOSE, "[AUTH][MSG_RESP]: auth success", &AuthFsm::HandleResp},
+        {WORKING, MSG_CLOSE, KILL_FSM, false, MSG_CLOSE, "[AUTH][MSG_CLOSE]: close auth flow", &AuthFsm::HandleClose},
+    };
+    const unsigned int transitionCount =
+        sizeof(AUTH_TRANSITIONS) / sizeof(AUTH_TRANSITIONS[0]);
+
     if (KILL_FSM == this->GetState())
     {
         return ERROR;
@@ -77,7 +82,8 @@ EerrNo AuthFsm::ProcessMsg(CMsg& pMsg)
         return EerrNo::ERROR;
     }
 
-    const AuthTransition* transition = FindTransition(this->GetState(), pMsg.type);
+    const AuthTransition* transition =
+        FindTransition(AUTH_TRANSITIONS, transitionCount, this->GetState(), pMsg.type);
     if (nullptr == transition)
     {
         std::cout << "AuthFsm::ProcessMsg invalid transition, state="
@@ -86,6 +92,10 @@ EerrNo AuthFsm::ProcessMsg(CMsg& pMsg)
     }
 
     std::cout << transition->log << std::endl;
+    if (nullptr != transition->action)
+    {
+        (this->*(transition->action))();
+    }
     this->SetState(transition->to);
 
     if (transition->hasNext)
@@ -99,6 +109,31 @@ EerrNo AuthFsm::ProcessMsg(CMsg& pMsg)
 void AuthFsm::PostPrcMsg(CMsg& pBuf)
 {
     Cfsm::PostPrcMsg(pBuf);
+}
+
+void AuthFsm::HandleInit()
+{
+    std::cout << "[AUTH][MSG_INIT]: initialize authentication context" << std::endl;
+}
+
+void AuthFsm::HandleConnect()
+{
+    std::cout << "[AUTH][MSG_CONNECT]: prepare authentication connection" << std::endl;
+}
+
+void AuthFsm::HandleReq()
+{
+    std::cout << "[AUTH][MSG_REQ]: build authentication request" << std::endl;
+}
+
+void AuthFsm::HandleResp()
+{
+    std::cout << "[AUTH][MSG_RESP]: process authentication response" << std::endl;
+}
+
+void AuthFsm::HandleClose()
+{
+    std::cout << "[AUTH][MSG_CLOSE]: release authentication context" << std::endl;
 }
 
 EerrNo AuthFsm::Destroy()
