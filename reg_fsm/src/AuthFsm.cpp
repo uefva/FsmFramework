@@ -66,7 +66,7 @@ EerrNo AuthFsm::PostNextEvent(const AuthTransition& transition, const CMsg& curr
     }
 
     return (0 == StartNextTimer(currentMsg, transition.nextEvent, transition.delayMs))
-        ? ERROR
+        ? TIMER_ERROR
         : SUCCESS;
 }
 
@@ -113,11 +113,6 @@ void AuthFsm::HandleClose()
 EerrNo AuthFsm::Destroy()
 {
     return Cfsm::Destroy();
-}
-
-EerrNo AuthFsm::Destory()
-{
-    return Destroy();
 }
 
 void AuthFsm::Print(bool detailFlag)

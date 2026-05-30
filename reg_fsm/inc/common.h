@@ -45,9 +45,12 @@ enum Tstate
 
 enum EerrNo
 {
-    INIT = 0,       // Initial or not-yet-processed result.
-    SUCCESS,        // Processing succeeded.
-    ERROR,          // Processing failed.
+    INIT = 0,        // Initial or not-yet-processed result.
+    SUCCESS,         // Processing succeeded.
+    ERROR,           // General processing failure.
+    INVALID_STATE,   // FSM is in a state that cannot handle this message.
+    INVALID_MSG,     // Message type is not valid for the current FSM state.
+    TIMER_ERROR,     // Timer operation failed.
 };
 
 

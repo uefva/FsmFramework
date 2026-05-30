@@ -66,7 +66,7 @@ EerrNo Cfsm::SendMsg(const CMsg& msg)
 {
     if ((nullptr == this->_factory) || (nullptr == this->_factory->GetFacMgr()))
     {
-        return ERROR;
+        return INVALID_STATE;
     }
 
     return this->_factory->GetFacMgr()->SendMsg(msg);
@@ -86,7 +86,7 @@ EerrNo Cfsm::StopTimer(WS_TIMER_ID timerId)
 {
     if ((nullptr == this->_factory) || (nullptr == this->_factory->GetFacMgr()))
     {
-        return ERROR;
+        return TIMER_ERROR;
     }
 
     return this->_factory->GetFacMgr()->StopTimer(timerId);
@@ -128,11 +128,6 @@ EerrNo Cfsm::Destroy()
 {
     std::cout << "Cfsm::Destroy" << std::endl;
     return SUCCESS;
-}
-
-EerrNo Cfsm::Destory()
-{
-    return Destroy();
 }
 
 void Cfsm::SaveMsg(const CMsg& msg)

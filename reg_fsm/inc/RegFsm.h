@@ -58,7 +58,6 @@ public:
     void PostPrcMsg(CMsg& pBuf) override;
 
     EerrNo Destroy() override;
-    EerrNo Destory() override;
     void Print(bool detailFlag) override;
 };
 

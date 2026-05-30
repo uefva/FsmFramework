@@ -15,7 +15,6 @@ public:
     explicit RegFactory(unsigned int facId);
 
     Cfsm* CreateFsm() override;
-    EerrNo FacMsgPrc(CMsg& msg) override;
 };
 
 #endif //MYFSMDEMO_REGFACTORY_H

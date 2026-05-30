@@ -17,13 +17,11 @@ Cfactory::~Cfactory()
 {
     std::lock_guard<std::mutex> guard(this->_fsm_lock);
 
-    // The factory owns every FSM it creates and releases them on destruction.
-    for (Cfsm* fsm : this->_fsm_list)
+    for (auto& fsm : this->_fsm_list)
     {
-        if (nullptr != fsm)
+        if (fsm)
         {
             fsm->Destroy();
-            delete fsm;
         }
     }
 
@@ -49,11 +47,11 @@ Cfsm* Cfactory::FindFsm(unsigned int fsmId)
 {
     std::lock_guard<std::mutex> guard(this->_fsm_lock);
 
-    for (Cfsm* fsm : this->_fsm_list)
+    for (auto& fsm : this->_fsm_list)
     {
-        if ((nullptr != fsm) && (fsm->GetFsmId() == fsmId))
+        if (fsm && (fsm->GetFsmId() == fsmId))
         {
-            return fsm;
+            return fsm.get();
         }
     }
 
@@ -64,36 +62,64 @@ Cfsm* Cfactory::AddFsm()
 {
     std::lock_guard<std::mutex> guard(this->_fsm_lock);
 
-    // Reject new FSM creation when the factory reaches its capacity limit.
     if (this->_fsm_list.size() >= FSM_NUM_IN_FAC)
     {
         std::cout << "Cfactory::AddFsm failed, factory is full" << std::endl;
         return nullptr;
     }
 
-    Cfsm* fsm = CreateFsm();
-    if (nullptr == fsm)
+    std::unique_ptr<Cfsm> fsm(CreateFsm());
+    if (!fsm)
     {
         return nullptr;
     }
 
-    // Assign an instance ID and link the FSM back to its owner factory.
     fsm->SetFsmId(this->_nextFsmId++);
     fsm->SetFactory(this);
     fsm->Create();
-    this->_fsm_list.push_back(fsm);
+
+    Cfsm* rawPtr = fsm.get();
+    this->_fsm_list.push_back(std::move(fsm));
 
     std::cout << "Cfactory::AddFsm facId=" << this->_facId
-              << " fsmId=" << fsm->GetFsmId() << std::endl;
+              << " fsmId=" << rawPtr->GetFsmId() << std::endl;
 
-    return fsm;
+    return rawPtr;
+}
+
+EerrNo Cfactory::FacMsgPrc(CMsg& msg)
+{
+    Cfsm* fsm = nullptr;
+
+    if (0 != msg.fsmId)
+    {
+        fsm = FindFsm(msg.fsmId);
+    }
+
+    if (nullptr == fsm)
+    {
+        if (MSG_INIT != msg.type)
+        {
+            std::cout << "Cfactory::FacMsgPrc fsm not found, facId="
+                      << this->_facId << " fsmId=" << msg.fsmId << std::endl;
+            return INVALID_MSG;
+        }
+
+        fsm = AddFsm();
+        if (nullptr == fsm)
+        {
+            return ERROR;
+        }
+    }
+
+    return DispatchToFsm(fsm, msg);
 }
 
 EerrNo Cfactory::DispatchToFsm(Cfsm* fsm, CMsg& msg)
 {
     if (nullptr == fsm)
     {
-        return ERROR;
+        return INVALID_MSG;
     }
 
     // Keep later self-posted messages routed to the same FSM.
@@ -117,12 +143,11 @@ EerrNo Cfactory::KillFsm(unsigned int fsmId)
 {
     std::lock_guard<std::mutex> guard(this->_fsm_lock);
 
-    // Find the instance by fsmId, destroy it, release memory, and remove it.
     auto it = std::find_if(
         this->_fsm_list.begin(),
         this->_fsm_list.end(),
-        [fsmId](Cfsm* fsm) {
-            return (nullptr != fsm) && (fsm->GetFsmId() == fsmId);
+        [fsmId](const std::unique_ptr<Cfsm>& fsm) {
+            return fsm && (fsm->GetFsmId() == fsmId);
         });
 
     if (this->_fsm_list.end() == it)
@@ -130,12 +155,11 @@ EerrNo Cfactory::KillFsm(unsigned int fsmId)
         return ERROR;
     }
 
-    Cfsm* fsm = *it;
+    Cfsm* fsm = it->get();
     std::cout << "Cfactory::KillFsm facId=" << this->_facId
               << " fsmId=" << fsm->GetFsmId() << std::endl;
 
     fsm->Destroy();
-    delete fsm;
     this->_fsm_list.erase(it);
 
     return SUCCESS;

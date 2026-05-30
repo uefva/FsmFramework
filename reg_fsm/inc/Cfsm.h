@@ -54,7 +54,6 @@ public:
 
     virtual EerrNo Create();                    // FSM initialization.
     virtual EerrNo Destroy();                   // FSM cleanup.
-    virtual EerrNo Destory();                   // Backward-compatible typo wrapper.
 
     // Deferred-message queue helpers. Scheduling policy can be added later.
     void SaveMsg(const CMsg& msg);

@@ -15,7 +15,6 @@ public:
     explicit AuthFactory(unsigned int facId);
 
     Cfsm* CreateFsm() override;
-    EerrNo FacMsgPrc(CMsg& msg) override;
 };
 
 #endif //MYFSMDEMO_AUTHFACTORY_H
