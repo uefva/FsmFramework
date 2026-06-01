@@ -36,13 +36,13 @@ EerrNo ExecuteFsmTransition(FsmT& fsm,
 {
     if (KILL_FSM == fsm.GetState())
     {
-        return ERROR;
+        return INVALID_STATE;
     }
 
     if (SUCCESS != fsm.Cfsm::ProcessMsg(msg))
     {
         std::cout << fsmName << "::ProcessMsg error" << std::endl;
-        return EerrNo::ERROR;
+        return INVALID_MSG;
     }
 
     const TransitionT* transition =
@@ -51,7 +51,7 @@ EerrNo ExecuteFsmTransition(FsmT& fsm,
     {
         std::cout << fsmName << "::ProcessMsg invalid transition, state="
                   << fsm.GetState() << " msg=" << msg.type << std::endl;
-        return EerrNo::ERROR;
+        return INVALID_MSG;
     }
 
     std::cout << transition->log << std::endl;

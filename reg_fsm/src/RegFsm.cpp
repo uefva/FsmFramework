@@ -70,7 +70,7 @@ EerrNo RegFsm::PostNextEvent(const RegTransition& transition, const CMsg& curren
     }
 
     return (0 == StartNextTimer(currentMsg, transition.nextEvent, transition.delayMs))
-        ? ERROR
+        ? TIMER_ERROR
         : SUCCESS;
 }
 
@@ -122,11 +122,6 @@ void RegFsm::HandleClose()
 EerrNo RegFsm::Destroy()
 {
     return Cfsm::Destroy();
-}
-
-EerrNo RegFsm::Destory()
-{
-    return Destroy();
 }
 
 void RegFsm::Print(bool detailFlag)

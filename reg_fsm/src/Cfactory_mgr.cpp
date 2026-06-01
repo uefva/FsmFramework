@@ -9,7 +9,8 @@
 #include <utility>
 
 Cfactory_mgr::Cfactory_mgr()
-    : _stopped(false), _running(false), _next_timer_id(1)
+    : _stopped(false), _running(false),
+      _timerManager([this](const CMsg& msg) { return this->SendMsg(msg); })
 {
     this->_fac_list.reserve(FAC_NUM_IN_MGR_MAX);
 }
@@ -18,24 +19,10 @@ Cfactory_mgr::~Cfactory_mgr()
 {
     // Stop accepting new work before reclaiming worker threads, timers, and factories.
     Stop();
-    Join();
-    StopAllTimers();
-
-    for (std::thread& timerThread : this->_timer_threads)
-    {
-        if (timerThread.joinable())
-        {
-            timerThread.join();
-        }
-    }
+    _timerManager.StopAndJoin();
 
     {
         std::lock_guard<std::mutex> guard(this->_fac_lock);
-        for (Cfactory* factory : this->_fac_list)
-        {
-            delete factory;
-        }
-
         this->_fac_list.clear();
     }
 }
@@ -64,7 +51,7 @@ EerrNo Cfactory_mgr::RegisterFactory(Cfactory* factory)
     }
 
     factory->SetFacMgr(this);
-    this->_fac_list.push_back(factory);
+    this->_fac_list.emplace_back(factory);
 
     std::cout << "Cfactory_mgr::RegisterFactory facId="
               << factory->GetFacId() << std::endl;
@@ -79,7 +66,7 @@ EerrNo Cfactory_mgr::SendMsg(const CMsg& msg)
         std::lock_guard<std::mutex> guard(this->_pump_lock);
         if (this->_stopped)
         {
-            return ERROR;
+            return INVALID_STATE;
         }
 
         this->_pump.push(msg);
@@ -201,68 +188,26 @@ void Cfactory_mgr::Join()
 
 WS_TIMER_ID Cfactory_mgr::StartTimer(unsigned int timeoutMs, const CMsg& timeoutMsg)
 {
-    std::shared_ptr<CTimerCtrl> timerCtrl;
-
-    {
-        // Store a timer control block so StopTimer can cancel posting.
-        std::lock_guard<std::mutex> guard(this->_timer_lock);
-        timerCtrl.reset(new CTimerCtrl(this->_next_timer_id++));
-        this->_timer_list.push_back(timerCtrl);
-    }
-
-    // Prototype timer: one sleeping thread per timer. A future TimerManager can replace it.
-    std::thread timerThread([this, timeoutMs, timeoutMsg, timerCtrl]() {
-        std::this_thread::sleep_for(std::chrono::milliseconds(timeoutMs));
-        if (timerCtrl->active.load())
-        {
-            SendMsg(timeoutMsg);
-        }
-    });
-
-    {
-        std::lock_guard<std::mutex> guard(this->_timer_lock);
-        this->_timer_threads.push_back(std::move(timerThread));
-    }
-
-    return timerCtrl->id;
+    return this->_timerManager.StartTimer(timeoutMs, timeoutMsg);
 }
 
 EerrNo Cfactory_mgr::StopTimer(WS_TIMER_ID timerId)
 {
-    std::lock_guard<std::mutex> guard(this->_timer_lock);
-
-    for (std::shared_ptr<CTimerCtrl>& timerCtrl : this->_timer_list)
-    {
-        if ((nullptr != timerCtrl) && (timerCtrl->id == timerId))
-        {
-            timerCtrl->active.store(false);
-            return SUCCESS;
-        }
-    }
-
-    return ERROR;
+    return this->_timerManager.StopTimer(timerId);
 }
 
 void Cfactory_mgr::StopAllTimers()
 {
-    std::lock_guard<std::mutex> guard(this->_timer_lock);
-
-    for (std::shared_ptr<CTimerCtrl>& timerCtrl : this->_timer_list)
-    {
-        if (nullptr != timerCtrl)
-        {
-            timerCtrl->active.store(false);
-        }
-    }
+    this->_timerManager.StopAllTimers();
 }
 
 Cfactory* Cfactory_mgr::FindFactory(unsigned int serviceId)
 {
-    for (Cfactory* factory : this->_fac_list)
+    for (auto& factory : this->_fac_list)
     {
-        if ((nullptr != factory) && (factory->GetFacId() == serviceId))
+        if (factory && (factory->GetFacId() == serviceId))
         {
-            return factory;
+            return factory.get();
         }
     }
 
@@ -283,7 +228,7 @@ EerrNo Cfactory_mgr::DispatchMsg(CMsg& msg)
     {
         std::cout << "Cfactory_mgr::DispatchMsg unknown serviceId="
                   << msg.serviceId << std::endl;
-        return ERROR;
+        return INVALID_MSG;
     }
 
     return factory->FacMsgPrc(msg);

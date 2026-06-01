@@ -130,7 +130,7 @@ void TestInvalidTransition()
     CMsg msg;
     msg.type = MSG_RESP;
 
-    assert(ERROR == fsm.ProcessMsg(msg));
+    assert(INVALID_MSG == fsm.ProcessMsg(msg));
 }
 
 void TestAuthInvalidTransition()
@@ -139,7 +139,7 @@ void TestAuthInvalidTransition()
     CMsg msg;
     msg.type = MSG_RESP;
 
-    assert(ERROR == fsm.ProcessMsg(msg));
+    assert(INVALID_MSG == fsm.ProcessMsg(msg));
 }
 
 void TestManagerFactoryFlow()

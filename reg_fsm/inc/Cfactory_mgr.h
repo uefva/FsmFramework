@@ -14,16 +14,7 @@
 #include <vector>
 
 #include "Cfactory.h"
-
-struct CTimerCtrl
-{
-    explicit CTimerCtrl(WS_TIMER_ID timerId) : id(timerId), active(true)
-    {
-    }
-
-    WS_TIMER_ID id;
-    std::atomic<bool> active;
-};
+#include "TimerManager.h"
 
 // Top-level FSM manager:
 // 1. Owns multiple Cfactory instances.
@@ -34,20 +25,16 @@ class Cfactory_mgr
 {
 private:
     // Registered factories. Each factory manages one type of FSM.
-    std::vector<Cfactory*> _fac_list;
+    std::vector<std::unique_ptr<Cfactory>> _fac_list;
 
     // Message pump queue for external events, FSM-generated events, and timer events.
     std::queue<CMsg> _pump;
 
-    // Prototype timer implementation: one control block and one thread per timer.
-    std::vector<std::shared_ptr<CTimerCtrl> > _timer_list;
-    std::vector<std::thread> _timer_threads;
     std::thread _worker_thread;
 
-    // Locks for the factory list, message pump, and timer list.
+    // Locks for the factory list and message pump.
     std::mutex _fac_lock;
     std::mutex _pump_lock;
-    std::mutex _timer_lock;
 
     // Condition variable used by the blocking message pump.
     std::condition_variable _pump_cv;
@@ -56,7 +43,8 @@ private:
     bool _stopped;
     bool _running;
 
-    WS_TIMER_ID _next_timer_id;
+    // Timer manager must be destroyed before the pump members it can call back into.
+    TimerManager _timerManager;
 
     Cfactory* FindFactory(unsigned int serviceId);
     EerrNo DispatchMsg(CMsg& msg);
