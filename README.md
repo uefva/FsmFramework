@@ -1,8 +1,8 @@
 # FsmFramework
 
-一个 C++ 事件驱动有限状态机框架原型。
+[English version](README_en.md)
 
-当前版本已经从单个 FSM demo 演进为 Manager-Factory-FSM 三层结构：
+`FsmFramework` 是一个 C++11 事件驱动有限状态机框架原型。当前版本已经从单个 FSM demo 演进为 `Cfactory_mgr -> Cfactory -> Cfsm` 三层结构，并包含注册、认证两条示例业务流程。
 
 ```text
 Cfactory_mgr
@@ -10,23 +10,21 @@ Cfactory_mgr
   -> AuthFactory -> AuthFsm
 ```
 
-## 已实现能力
+## 当前能力
 
-- 多层框架结构：`Cfactory_mgr`、`Cfactory`、`Cfsm`
-- 两套业务流程：注册流程 `RegFsm`、认证流程 `AuthFsm`
-- 线程安全消息泵：`SendMsg`、`Run`、`Stop`、`RunUntilEmpty`
-- 自管理后台线程：`Start`、`Stop`、`Join`
-- Factory 路由：按 `serviceId` 找到目标工厂
-- FSM 路由：按 `fsmId` 找到目标状态机实例
-- FSM 生命周期管理：创建、分发、结束后回收
-- 定时器事件：`StartTimer` 到期后投递普通 `CMsg`
-- 表驱动状态转移：`RegFsm` 和 `AuthFsm` 均使用转移表
-- 低耦合 FSM 接口：业务 FSM 通过 `Cfsm::SendMsg` / `StartTimer` 投递事件
-- 状态进入/退出钩子：`OnEnterState`、`OnExitState`
-- 工厂 FSM 列表锁保护
-- 消息暂存队列：`Cfsm::_save`、`Cfsm::_hold`
-- CMake 构建入口
-- 基础测试入口：`reg_fsm_tests`
+- 三层调度结构：`Cfactory_mgr` 负责消息泵和工厂注册，`Cfactory` 负责 FSM 生命周期，`Cfsm` 负责状态机公共接口。
+- 两套业务状态机：注册流程 `RegFsm`，认证流程 `AuthFsm`。
+- 线程安全消息泵：`SendMsg`、`PumpOnce`、`Run`、`RunUntilEmpty`、`Start`、`Stop`、`Join`。
+- Factory 路由：按 `CMsg::serviceId` 找到目标工厂。
+- FSM 路由：按 `CMsg::fsmId` 找到目标状态机；`MSG_INIT` 可创建新 FSM。
+- 自动生命周期管理：工厂使用 `std::unique_ptr` 持有 FSM，FSM 进入 `KILL_FSM` 后由工厂回收。
+- 表驱动状态转移：`RegFsm` 和 `AuthFsm` 复用 `FsmTableExecutor` 查找并执行转移规则。
+- 定时器模块：`TimerManager` 到期后通过回调向 manager 投递普通 `CMsg`。
+- 低耦合 FSM 接口：业务 FSM 通过 `Cfsm::SendMsg`、`StartTimer`、`StopTimer` 投递后续事件。
+- 状态进入/退出钩子：`OnEnterState`、`OnExitState`。
+- 消息暂存队列：`Cfsm::_save`、`Cfsm::_hold` 及对应 pop 接口。
+- 更细粒度错误码：`SUCCESS`、`ERROR`、`INVALID_STATE`、`INVALID_MSG`、`TIMER_ERROR`。
+- CMake 构建入口和 `reg_fsm_tests` 测试入口。
 
 ## 构建
 
@@ -41,7 +39,7 @@ cmake --build build
 ./build/reg_fsm_demo
 ```
 
-Windows 下可执行文件路径可能是：
+Windows 下常见路径：
 
 ```bash
 ./build/Debug/reg_fsm_demo.exe
@@ -50,16 +48,24 @@ Windows 下可执行文件路径可能是：
 ## 运行测试
 
 ```bash
+cmake --build build --target test
+```
+
+也可以直接运行测试程序：
+
+```bash
 ./build/reg_fsm_tests
 ```
 
-Windows 下可执行文件路径可能是：
+Windows 下常见路径：
 
 ```bash
 ./build/Debug/reg_fsm_tests.exe
 ```
 
-## 当前示例流程
+> 注意：当前测试包含 10,000,000 条消息级别的压力测试，运行时间会明显长于普通 smoke test。
+
+## 示例流程
 
 注册流程 `FAC_REG_FAC_ID -> RegFactory -> RegFsm`：
 
@@ -68,7 +74,7 @@ MSG_INIT
   -> MSG_CONNECT
   -> MSG_REQ
   -> MSG_RESP
-  -> MSG_TIMEOUT
+  -> MSG_TIMEOUT   (10 ms timer)
   -> MSG_CLOSE
   -> KILL_FSM
 ```
@@ -80,16 +86,8 @@ MSG_INIT
   -> MSG_CONNECT
   -> MSG_REQ
   -> MSG_RESP
-  -> MSG_CLOSE
+  -> MSG_CLOSE     (100 ms timer)
   -> KILL_FSM
 ```
 
-其中注册流程的 `MSG_RESP -> MSG_TIMEOUT` 通过定时器触发，定时器到期后向 `Cfactory_mgr` 消息泵投递 `MSG_TIMEOUT`。
-
-## 文档
-
-详细设计说明见：
-
-```text
-docs/design.md
-```
+详细设计说明见 [docs/design.md](docs/design.md)。
