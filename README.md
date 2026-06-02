@@ -24,6 +24,7 @@ Cfactory_mgr
 - 状态进入/退出钩子：`OnEnterState`、`OnExitState`。
 - 消息暂存队列：`Cfsm::_save`、`Cfsm::_hold` 及对应 pop 接口。
 - 更细粒度错误码：`SUCCESS`、`ERROR`、`INVALID_STATE`、`INVALID_MSG`、`TIMER_ERROR`。
+- 轻量日志模块：`Logger` 支持级别、模块和时间戳；默认 `INFO` 输出流程摘要，`DEBUG/WARN/ERROR` 追加定位信息。
 - CMake 构建入口和 `reg_fsm_tests` 测试入口。
 
 ## 构建
@@ -88,6 +89,13 @@ MSG_INIT
   -> MSG_RESP
   -> MSG_CLOSE     (100 ms timer)
   -> KILL_FSM
+```
+
+默认日志输出以 FSM 流程摘要为主：
+
+```text
+[15:04:36.850][INFO][RegFsm] fsm=1 event=MSG_INIT state=IDLE->WORKING next=MSG_CONNECT
+[15:04:36.858][WARN][Cfactory_mgr] DispatchMsg unknown serviceId=4 event=MSG_INIT at=Cfactory_mgr.cpp:229 thread=2
 ```
 
 详细设计说明见 [docs/design.md](docs/design.md)。

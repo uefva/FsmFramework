@@ -17,6 +17,7 @@ add_executable(reg_fsm_demo
     reg_fsm/src/Cfsm.cpp
     reg_fsm/src/Cfactory.cpp
     reg_fsm/src/Cfactory_mgr.cpp
+    reg_fsm/src/Logger.cpp
     reg_fsm/src/RegFactory.cpp
     reg_fsm/src/RegFsm.cpp
     reg_fsm/src/TimerManager.cpp
@@ -37,6 +38,7 @@ add_executable(reg_fsm_tests
     reg_fsm/src/Cfsm.cpp
     reg_fsm/src/Cfactory.cpp
     reg_fsm/src/Cfactory_mgr.cpp
+    reg_fsm/src/Logger.cpp
     reg_fsm/src/RegFactory.cpp
     reg_fsm/src/RegFsm.cpp
     reg_fsm/src/TimerManager.cpp

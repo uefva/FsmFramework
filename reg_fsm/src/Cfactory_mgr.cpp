@@ -5,8 +5,9 @@
 #include "../inc/Cfactory_mgr.h"
 
 #include <chrono>
-#include <iostream>
 #include <utility>
+
+#include "../inc/Logger.h"
 
 Cfactory_mgr::Cfactory_mgr()
     : _stopped(false), _running(false),
@@ -39,22 +40,21 @@ EerrNo Cfactory_mgr::RegisterFactory(Cfactory* factory)
 
     if (this->_fac_list.size() >= FAC_NUM_IN_MGR_MAX)
     {
-        std::cout << "Cfactory_mgr::RegisterFactory failed, manager is full" << std::endl;
+        LOG_ERROR("Cfactory_mgr", "RegisterFactory failed, manager is full");
         return ERROR;
     }
 
     if (nullptr != FindFactory(factory->GetFacId()))
     {
-        std::cout << "Cfactory_mgr::RegisterFactory failed, duplicated facId="
-                  << factory->GetFacId() << std::endl;
+        LOG_ERROR("Cfactory_mgr", "RegisterFactory failed, duplicated facId="
+                                  << factory->GetFacId());
         return ERROR;
     }
 
     factory->SetFacMgr(this);
     this->_fac_list.emplace_back(factory);
 
-    std::cout << "Cfactory_mgr::RegisterFactory facId="
-              << factory->GetFacId() << std::endl;
+    LOG_DEBUG("Cfactory_mgr", "RegisterFactory facId=" << factory->GetFacId());
 
     return SUCCESS;
 }
@@ -226,8 +226,9 @@ EerrNo Cfactory_mgr::DispatchMsg(CMsg& msg)
 
     if (nullptr == factory)
     {
-        std::cout << "Cfactory_mgr::DispatchMsg unknown serviceId="
-                  << msg.serviceId << std::endl;
+        LOG_WARN("Cfactory_mgr", "DispatchMsg unknown serviceId="
+                                 << msg.serviceId
+                                 << " event=" << MsgTypeToString(msg.type));
         return INVALID_MSG;
     }
 

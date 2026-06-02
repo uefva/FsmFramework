@@ -37,6 +37,7 @@ FsmFramework/
 │   │   ├── Cfactory_mgr.h
 │   │   ├── Cfsm.h
 │   │   ├── FsmTableExecutor.h
+│   │   ├── Logger.h
 │   │   ├── RegFactory.h
 │   │   ├── RegFsm.h
 │   │   ├── TimerManager.h
@@ -48,6 +49,7 @@ FsmFramework/
 │       ├── Cfactory.cpp
 │       ├── Cfactory_mgr.cpp
 │       ├── Cfsm.cpp
+│       ├── Logger.cpp
 │       ├── RegFactory.cpp
 │       ├── RegFsm.cpp
 │       └── TimerManager.cpp
@@ -204,7 +206,28 @@ Key APIs:
 4. It returns `INVALID_MSG` when no valid transition is found.
 5. On success, it logs, runs the business action, changes state, and posts the next event if configured.
 
-### 4.5 `TimerManager`
+### 4.5 `Logger`
+
+`Logger` is the lightweight logging module used by the project. It still uses `std::cout` as the output backend, but framework code now logs through one shared entry point. Default `INFO` logs are optimized for flow readability, while `DEBUG/WARN/ERROR` logs are used for debugging and failure location.
+
+Current capabilities:
+
+- Log levels: `DEBUG`, `INFO`, `WARN`, `ERROR`, and `OFF`.
+- Module names: for example `Cfactory_mgr`, `Cfactory`, `RegFsm`, `AuthFsm`, and `TimerManager`.
+- Millisecond timestamps shown as `HH:MM:SS.mmm`.
+- `INFO` format: timestamp, level, module, and business summary only.
+- `DEBUG/WARN/ERROR` format: appends file name, line number, and thread ID.
+- Enum-to-string helpers: `MsgTypeToString`, `StateToString`, and `ErrNoToString`.
+- Thread safety: a mutex keeps each log line intact.
+
+Example:
+
+```text
+[15:04:36.850][INFO][RegFsm] fsm=1 event=MSG_INIT state=IDLE->WORKING next=MSG_CONNECT
+[15:04:36.858][WARN][Cfactory_mgr] DispatchMsg unknown serviceId=4 event=MSG_INIT at=Cfactory_mgr.cpp:229 thread=2
+```
+
+### 4.6 `TimerManager`
 
 `TimerManager` has been extracted from `Cfactory_mgr`. It owns timer threads and posts messages through a callback. The current implementation is still a prototype: each timer creates one thread, sleeps for `timeoutMs`, checks `active`, and posts the message if still active.
 
@@ -214,7 +237,7 @@ Limitations:
 - `StopTimer` only prevents message posting after expiration; it does not interrupt `sleep_for`.
 - `StopAndJoin` must wait for already-started timer threads to finish.
 
-### 4.6 `RegFsm` and `AuthFsm`
+### 4.7 `RegFsm` and `AuthFsm`
 
 `RegFsm` and `AuthFsm` both derive from `Cfsm` and describe their business flows with transition tables. Each transition contains:
 
@@ -224,7 +247,7 @@ Limitations:
 - whether it posts a follow-up event `hasNext`
 - follow-up event `nextEvent`
 - timer delay `delayMs`
-- log text `log`
+- log text `log`, currently kept mainly as transition-rule documentation
 - business action pointer `action`
 
 ## 5. Runtime Flow
@@ -352,7 +375,7 @@ Note: the current stress tests use `PERF_MSG_COUNT = 10000000`. This is useful f
 
 | Limitation | Description |
 |---|---|
-| Logging still uses `std::cout` directly | No unified levels, modules, timestamps, or switches. |
+| Logging is still synchronous console output | `Logger` unifies the entry point and improves default readability, but it does not yet have a file backend or async queue. |
 | `TimerManager` is still a one-thread-per-timer prototype | Many timers create many threads. |
 | `StopTimer` does not interrupt `sleep_for` | It only prevents posting after expiration. |
 | `SaveMsg` / `HoldMsg` do not yet have a full scheduling policy | Queue helpers exist, but no resume policy is defined yet. |
@@ -363,7 +386,7 @@ Note: the current stress tests use `PERF_MSG_COUNT = 10000000`. This is useful f
 
 Recommended next steps, ordered by risk and payoff:
 
-1. Add a unified logging interface with at least module names, error codes, and switches.
+1. Extend `Logger` with file output, an async queue, module filtering, and runtime configuration.
 2. Upgrade `TimerManager` to a single worker with a condition variable and priority queue to avoid many timer threads.
 3. Extend `FsmTableExecutor` into a fuller transition executor to reduce repeated business FSM code.
 4. Introduce GoogleTest or another test framework, and split stress tests from normal unit tests.
@@ -386,4 +409,4 @@ For example, to add `LoginFsm`:
 
 ## 11. Summary
 
-The project now has a runnable, testable, and extensible FSM framework shape. Compared with the early demo, the latest implementation includes common factory routing, a shared transition table executor, a standalone timer manager, more specific error codes, a background message pump, and stress test entry points. The next valuable improvements are logging, timer internals, a test framework, payload management, and state diagram generation.
+The project now has a runnable, testable, and extensible FSM framework shape. Compared with the early demo, the latest implementation includes common factory routing, a shared transition table executor, a standalone timer manager, more specific error codes, a lightweight logger, a background message pump, and stress test entry points. The next valuable improvements are timer internals, a test framework, payload management, logging backend enhancements, and state diagram generation.

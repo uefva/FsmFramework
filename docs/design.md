@@ -37,6 +37,7 @@ FsmFramework/
 │   │   ├── Cfactory_mgr.h
 │   │   ├── Cfsm.h
 │   │   ├── FsmTableExecutor.h
+│   │   ├── Logger.h
 │   │   ├── RegFactory.h
 │   │   ├── RegFsm.h
 │   │   ├── TimerManager.h
@@ -48,6 +49,7 @@ FsmFramework/
 │       ├── Cfactory.cpp
 │       ├── Cfactory_mgr.cpp
 │       ├── Cfsm.cpp
+│       ├── Logger.cpp
 │       ├── RegFactory.cpp
 │       ├── RegFsm.cpp
 │       └── TimerManager.cpp
@@ -204,7 +206,28 @@ enum EerrNo
 4. 未找到合法转移时返回 `INVALID_MSG`。
 5. 找到转移后执行日志、业务 action、状态切换和下一事件投递。
 
-### 4.5 `TimerManager`
+### 4.5 `Logger`
+
+`Logger` 是当前项目的轻量日志模块。它仍以 `std::cout` 作为输出后端，但已经把业务代码中的直接输出收敛到统一入口。默认 `INFO` 日志面向流程阅读，`DEBUG/WARN/ERROR` 用于调试和异常定位。
+
+当前能力：
+
+- 日志级别：`DEBUG`、`INFO`、`WARN`、`ERROR`、`OFF`。
+- 模块名：例如 `Cfactory_mgr`、`Cfactory`、`RegFsm`、`AuthFsm`、`TimerManager`。
+- 时间戳：精确到毫秒，默认显示 `HH:MM:SS.mmm`。
+- `INFO` 格式：只输出时间、级别、模块和业务摘要。
+- `DEBUG/WARN/ERROR` 格式：在摘要后追加文件名、行号和线程 ID。
+- 枚举转字符串：`MsgTypeToString`、`StateToString`、`ErrNoToString`。
+- 线程安全：内部使用 mutex 保证单条日志完整输出。
+
+示例：
+
+```text
+[15:04:36.850][INFO][RegFsm] fsm=1 event=MSG_INIT state=IDLE->WORKING next=MSG_CONNECT
+[15:04:36.858][WARN][Cfactory_mgr] DispatchMsg unknown serviceId=4 event=MSG_INIT at=Cfactory_mgr.cpp:229 thread=2
+```
+
+### 4.6 `TimerManager`
 
 `TimerManager` 已从 `Cfactory_mgr` 中拆出，负责定时器线程和回调投递。当前实现仍是原型方案：每个 timer 创建一个线程，线程 `sleep_for(timeoutMs)` 后检查 `active`，若仍有效则通过回调投递消息。
 
@@ -214,7 +237,7 @@ enum EerrNo
 - `StopTimer` 只会阻止到期后投递消息，不会中断 `sleep_for`。
 - `StopAndJoin` 需要等待已启动的 timer 线程结束。
 
-### 4.6 `RegFsm` 和 `AuthFsm`
+### 4.7 `RegFsm` 和 `AuthFsm`
 
 `RegFsm` 和 `AuthFsm` 都继承自 `Cfsm`，使用自己的转移表描述业务流程。每个转移项包含：
 
@@ -224,7 +247,7 @@ enum EerrNo
 - 是否生成后续事件 `hasNext`
 - 后续事件 `nextEvent`
 - 定时延迟 `delayMs`
-- 日志文本 `log`
+- 日志文本 `log`，当前主要作为转移规则说明保留
 - 业务动作函数指针 `action`
 
 ## 5. 运行流程
@@ -352,7 +375,7 @@ Windows Debug 构建下可执行文件通常位于：
 
 | 限制 | 说明 |
 |---|---|
-| 日志仍直接使用 `std::cout` | 没有统一级别、模块、时间戳或开关。 |
+| 日志模块仍是同步输出 | 当前 `Logger` 已统一入口并优化默认可读性，但仍没有文件后端或异步队列。 |
 | `TimerManager` 仍是一个 timer 一个线程的原型实现 | 定时器数量很多时会创建大量线程。 |
 | `StopTimer` 不会中断 `sleep_for` | 只会阻止到期后投递。 |
 | `SaveMsg` / `HoldMsg` 还没有完整调度策略 | 当前已有队列接口，但没有恢复策略。 |
@@ -363,7 +386,7 @@ Windows Debug 构建下可执行文件通常位于：
 
 建议按风险和收益优先级继续推进：
 
-1. 抽象统一日志接口，至少支持模块名、错误码和开关。
+1. 增强 `Logger`，支持文件输出、异步队列、模块过滤和运行时配置。
 2. 将 `TimerManager` 升级为单 worker + 条件变量 + 优先队列，避免大量 timer 线程。
 3. 把 `FsmTableExecutor` 扩展为更完整的转移执行器，进一步减少业务 FSM 重复代码。
 4. 引入 GoogleTest 或其他测试框架，并拆分压力测试与普通单元测试。
@@ -386,4 +409,4 @@ Windows Debug 构建下可执行文件通常位于：
 
 ## 11. 总结
 
-当前项目已经具备一个可运行、可测试、可扩展的 FSM 框架雏形。相比早期 demo，最新实现已经补齐了通用工厂路由、统一转移表执行辅助、独立定时器管理器、细分错误码、后台消息泵和压力测试入口。后续重点可以放在日志、定时器实现、测试框架、payload 管理和状态图导出上。
+当前项目已经具备一个可运行、可测试、可扩展的 FSM 框架雏形。相比早期 demo，最新实现已经补齐了通用工厂路由、统一转移表执行辅助、独立定时器管理器、细分错误码、轻量日志模块、后台消息泵和压力测试入口。后续重点可以放在定时器实现、测试框架、payload 管理、日志后端增强和状态图导出上。

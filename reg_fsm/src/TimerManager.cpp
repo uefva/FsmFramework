@@ -5,6 +5,8 @@
 
 #include "../inc/TimerManager.h"
 
+#include "../inc/Logger.h"
+
 #include <chrono>
 #include <utility>
 
@@ -28,11 +30,24 @@ WS_TIMER_ID TimerManager::StartTimer(unsigned int timeoutMs, const CMsg& timeout
         this->_timer_list.push_back(timerCtrl);
     }
 
+    LOG_DEBUG("TimerManager", "StartTimer timerId=" << timerCtrl->id
+                              << " timeoutMs=" << timeoutMs
+                              << " serviceId=" << timeoutMsg.serviceId
+                              << " fsmId=" << timeoutMsg.fsmId
+                              << " event=" << MsgTypeToString(timeoutMsg.type));
+
     std::thread timerThread([this, timeoutMs, timeoutMsg, timerCtrl]() {
         std::this_thread::sleep_for(std::chrono::milliseconds(timeoutMs));
         if (timerCtrl->active.load())
         {
+            LOG_DEBUG("TimerManager", "Timer expired timerId=" << timerCtrl->id
+                                      << " event=" << MsgTypeToString(timeoutMsg.type));
             this->_callback(timeoutMsg);
+        }
+        else
+        {
+            LOG_DEBUG("TimerManager", "Timer canceled before expiration timerId="
+                                      << timerCtrl->id);
         }
     });
 
@@ -53,10 +68,12 @@ EerrNo TimerManager::StopTimer(WS_TIMER_ID timerId)
         if ((nullptr != timerCtrl) && (timerCtrl->id == timerId))
         {
             timerCtrl->active.store(false);
+            LOG_DEBUG("TimerManager", "StopTimer timerId=" << timerId);
             return SUCCESS;
         }
     }
 
+    LOG_WARN("TimerManager", "StopTimer failed, timerId=" << timerId);
     return TIMER_ERROR;
 }
 
@@ -71,6 +88,8 @@ void TimerManager::StopAllTimers()
             timerCtrl->active.store(false);
         }
     }
+
+    LOG_DEBUG("TimerManager", "StopAllTimers");
 }
 
 void TimerManager::StopAndJoin()

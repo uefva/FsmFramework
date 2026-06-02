@@ -5,9 +5,7 @@
 #include "../inc/RegFsm.h"
 
 #include "../inc/FsmTableExecutor.h"
-
-#include <iostream>
-#include <ostream>
+#include "../inc/Logger.h"
 
 RegFsm::RegFsm() : Cfsm(IDLE)
 {
@@ -40,7 +38,7 @@ const RegFsm::RegTransition* RegFsm::GetTransitions()
         {IDLE, MSG_INIT, WORKING, true, MSG_CONNECT, 0, "[REG][MSG_INIT]: start reg service", &RegFsm::HandleInit},
         {WORKING, MSG_CONNECT, WORKING, true, MSG_REQ, 0, "[REG][MSG_CONNECT]: connect reg service", &RegFsm::HandleConnect},
         {WORKING, MSG_REQ, WORKING, true, MSG_RESP, 0, "[REG][MSG_REQ]: request reg service", &RegFsm::HandleReq},
-        {WORKING, MSG_RESP, WORKING, true, MSG_TIMEOUT, 10, "[REG][MSG_RESP]: response reg service", &RegFsm::HandleResp},
+        {WORKING, MSG_RESP, WORKING, true, MSG_TIMEOUT, 100, "[REG][MSG_RESP]: response reg service", &RegFsm::HandleResp},
         {WORKING, MSG_TIMEOUT, WORKING, true, MSG_CLOSE, 0, "[REG][MSG_TIMEOUT]: timeout reg service", &RegFsm::HandleTimeout},
         {WORKING, MSG_CLOSE, KILL_FSM, false, MSG_CLOSE, 0, "[REG][MSG_CLOSE]: close reg service", &RegFsm::HandleClose},
     };
@@ -91,32 +89,32 @@ void RegFsm::PostPrcMsg(CMsg& pBuf)
 
 void RegFsm::HandleInit()
 {
-    std::cout << "[REG][MSG_INIT]: initialize registration context" << std::endl;
+    LOG_DEBUG("RegFsm", "initialize registration context");
 }
 
 void RegFsm::HandleConnect()
 {
-    std::cout << "[REG][MSG_CONNECT]: prepare registration connection" << std::endl;
+    LOG_DEBUG("RegFsm", "prepare registration connection");
 }
 
 void RegFsm::HandleReq()
 {
-    std::cout << "[REG][MSG_REQ]: build registration request" << std::endl;
+    LOG_DEBUG("RegFsm", "build registration request");
 }
 
 void RegFsm::HandleResp()
 {
-    std::cout << "[REG][MSG_RESP]: process registration response" << std::endl;
+    LOG_DEBUG("RegFsm", "process registration response");
 }
 
 void RegFsm::HandleTimeout()
 {
-    std::cout << "[REG][MSG_TIMEOUT]: handle registration timeout" << std::endl;
+    LOG_DEBUG("RegFsm", "handle registration timeout");
 }
 
 void RegFsm::HandleClose()
 {
-    std::cout << "[REG][MSG_CLOSE]: release registration context" << std::endl;
+    LOG_DEBUG("RegFsm", "release registration context");
 }
 
 EerrNo RegFsm::Destroy()
@@ -126,5 +124,7 @@ EerrNo RegFsm::Destroy()
 
 void RegFsm::Print(bool detailFlag)
 {
-    std::cout << "[RegFsm::Print]" << std::endl;
+    LOG_INFO("RegFsm", "Print detailFlag=" << detailFlag
+                       << " fsmId=" << GetFsmId()
+                       << " state=" << StateToString(GetState()));
 }

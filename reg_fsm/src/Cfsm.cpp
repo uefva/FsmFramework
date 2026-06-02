@@ -2,12 +2,10 @@
 // Created by MR on 2026/4/29.
 //
 
-#include <iostream>
-#include <ostream>
-
 #include "../inc/Cfactory.h"
 #include "../inc/Cfactory_mgr.h"
 #include "../inc/Cfsm.h"
+#include "../inc/Logger.h"
 
 void Cfsm::_changeState(Tstate state)
 {
@@ -102,19 +100,25 @@ void Cfsm::OnEnterState(Tstate oldState, Tstate newState)
 
 void Cfsm::PrePrcMsg(CMsg& pBuf)
 {
-    std::cout << "Cfsm::PrePrcMsg" << std::endl;
+    LOG_DEBUG("Cfsm", "PrePrcMsg fsmId=" << this->_fsmId
+                       << " state=" << StateToString(this->_state)
+                       << " event=" << MsgTypeToString(pBuf.type));
 }
 
 EerrNo Cfsm::ProcessMsg(CMsg& pMsg)
 {
-    std::cout << "Cfsm::ProcessMsg" << std::endl;
+    LOG_DEBUG("Cfsm", "ProcessMsg fsmId=" << this->_fsmId
+                       << " state=" << StateToString(this->_state)
+                       << " event=" << MsgTypeToString(pMsg.type));
 
     return EerrNo::SUCCESS;
 }
 
 void Cfsm::PostPrcMsg(CMsg& pBuf)
 {
-    std::cout << "Cfsm::PostPrcMsg" << std::endl;
+    LOG_DEBUG("Cfsm", "PostPrcMsg fsmId=" << this->_fsmId
+                       << " state=" << StateToString(this->_state)
+                       << " event=" << MsgTypeToString(pBuf.type));
 }
 
 EerrNo Cfsm::Create()
@@ -126,7 +130,8 @@ EerrNo Cfsm::Create()
 
 EerrNo Cfsm::Destroy()
 {
-    std::cout << "Cfsm::Destroy" << std::endl;
+    LOG_DEBUG("Cfsm", "Destroy fsmId=" << this->_fsmId
+                      << " state=" << StateToString(this->_state));
     return SUCCESS;
 }
 

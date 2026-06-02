@@ -5,7 +5,8 @@
 #include "../inc/Cfactory.h"
 
 #include <algorithm>
-#include <iostream>
+
+#include "../inc/Logger.h"
 
 Cfactory::Cfactory(unsigned int facId)
     : _facId(facId), _facMgr(nullptr), _nextFsmId(1)
@@ -64,7 +65,8 @@ Cfsm* Cfactory::AddFsm()
 
     if (this->_fsm_list.size() >= FSM_NUM_IN_FAC)
     {
-        std::cout << "Cfactory::AddFsm failed, factory is full" << std::endl;
+        LOG_ERROR("Cfactory", "AddFsm failed, factory is full, facId="
+                              << this->_facId);
         return nullptr;
     }
 
@@ -81,8 +83,8 @@ Cfsm* Cfactory::AddFsm()
     Cfsm* rawPtr = fsm.get();
     this->_fsm_list.push_back(std::move(fsm));
 
-    std::cout << "Cfactory::AddFsm facId=" << this->_facId
-              << " fsmId=" << rawPtr->GetFsmId() << std::endl;
+    LOG_DEBUG("Cfactory", "AddFsm facId=" << this->_facId
+                          << " fsmId=" << rawPtr->GetFsmId());
 
     return rawPtr;
 }
@@ -100,8 +102,9 @@ EerrNo Cfactory::FacMsgPrc(CMsg& msg)
     {
         if (MSG_INIT != msg.type)
         {
-            std::cout << "Cfactory::FacMsgPrc fsm not found, facId="
-                      << this->_facId << " fsmId=" << msg.fsmId << std::endl;
+            LOG_WARN("Cfactory", "fsm not found, facId=" << this->_facId
+                                 << " fsmId=" << msg.fsmId
+                                 << " event=" << MsgTypeToString(msg.type));
             return INVALID_MSG;
         }
 
@@ -156,8 +159,8 @@ EerrNo Cfactory::KillFsm(unsigned int fsmId)
     }
 
     Cfsm* fsm = it->get();
-    std::cout << "Cfactory::KillFsm facId=" << this->_facId
-              << " fsmId=" << fsm->GetFsmId() << std::endl;
+    LOG_DEBUG("Cfactory", "KillFsm facId=" << this->_facId
+                          << " fsmId=" << fsm->GetFsmId());
 
     fsm->Destroy();
     this->_fsm_list.erase(it);

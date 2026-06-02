@@ -3,10 +3,9 @@
 //
 
 #include <chrono>
-#include <iostream>
-#include <ostream>
 #include <thread>
 
+#include "Logger.h"
 #include "inc/AuthFactory.h"
 #include "inc/Cfactory_mgr.h"
 #include "inc/RegFactory.h"
@@ -26,13 +25,13 @@ void FsmMgrTest(const U32 serviceId)
 }
 
 int main() {
+    Logger::Instance().SetLevel(LogLevel::INFO);
+
     mgr.RegisterFactory(new RegFactory(FAC_REG_FAC_ID));
     mgr.RegisterFactory(new AuthFactory(FAC_AUTH_FAC_ID));
 
     // Let the manager own its background message-pump thread.
     mgr.Start();
-
-    std::cout << std::endl;
 
     // Send messages to two different target factories.
     FsmMgrTest(FAC_REG_FAC_ID);

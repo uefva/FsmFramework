@@ -5,9 +5,10 @@
 #ifndef MYFSMDEMO_FSMTABLEEXECUTOR_H
 #define MYFSMDEMO_FSMTABLEEXECUTOR_H
 
-#include <iostream>
+#include <sstream>
 
 #include "Cfsm.h"
+#include "Logger.h"
 
 template <typename TransitionT>
 const TransitionT* FindFsmTransition(const TransitionT* transitions,
@@ -36,12 +37,15 @@ EerrNo ExecuteFsmTransition(FsmT& fsm,
 {
     if (KILL_FSM == fsm.GetState())
     {
+        LOG_WARN(fsmName, "invalid state=" << StateToString(fsm.GetState())
+                         << " event=" << MsgTypeToString(msg.type));
         return INVALID_STATE;
     }
 
     if (SUCCESS != fsm.Cfsm::ProcessMsg(msg))
     {
-        std::cout << fsmName << "::ProcessMsg error" << std::endl;
+        LOG_ERROR(fsmName, "base ProcessMsg failed, event="
+                           << MsgTypeToString(msg.type));
         return INVALID_MSG;
     }
 
@@ -49,12 +53,31 @@ EerrNo ExecuteFsmTransition(FsmT& fsm,
         FindFsmTransition(transitions, transitionCount, fsm.GetState(), msg.type);
     if (nullptr == transition)
     {
-        std::cout << fsmName << "::ProcessMsg invalid transition, state="
-                  << fsm.GetState() << " msg=" << msg.type << std::endl;
+        LOG_WARN(fsmName, "invalid transition, state="
+                          << StateToString(fsm.GetState())
+                          << " event=" << MsgTypeToString(msg.type));
         return INVALID_MSG;
     }
 
-    std::cout << transition->log << std::endl;
+    std::ostringstream transitionLog;
+    transitionLog << "fsm=" << fsm.GetFsmId()
+                  << " event=" << MsgTypeToString(msg.type)
+                  << " state=" << StateToString(fsm.GetState())
+                  << "->" << StateToString(transition->to);
+    if (transition->hasNext)
+    {
+        transitionLog << " next=" << MsgTypeToString(transition->nextEvent);
+        if (transition->delayMs > 0)
+        {
+            transitionLog << " delayMs=" << transition->delayMs;
+        }
+    }
+    else
+    {
+        transitionLog << " next=none";
+    }
+
+    LOG_INFO(fsmName, transitionLog.str());
     fsm.RunAction(transition->action);
     fsm.SetState(transition->to);
 

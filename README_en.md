@@ -24,6 +24,7 @@ Cfactory_mgr
 - State enter/exit hooks: `OnEnterState` and `OnExitState`.
 - Deferred message queues: `Cfsm::_save`, `Cfsm::_hold`, and their pop helpers.
 - More specific error codes: `SUCCESS`, `ERROR`, `INVALID_STATE`, `INVALID_MSG`, and `TIMER_ERROR`.
+- Lightweight logging module: `Logger` supports levels, modules, and timestamps; default `INFO` logs show flow summaries, while `DEBUG/WARN/ERROR` add source location details.
 - CMake build entry and a `reg_fsm_tests` test executable.
 
 ## Build
@@ -88,6 +89,13 @@ MSG_INIT
   -> MSG_RESP
   -> MSG_CLOSE     (100 ms timer)
   -> KILL_FSM
+```
+
+Default logs focus on FSM flow summaries:
+
+```text
+[15:04:36.850][INFO][RegFsm] fsm=1 event=MSG_INIT state=IDLE->WORKING next=MSG_CONNECT
+[15:04:36.858][WARN][Cfactory_mgr] DispatchMsg unknown serviceId=4 event=MSG_INIT at=Cfactory_mgr.cpp:229 thread=2
 ```
 
 See [docs/design.md](docs/design.md) for the detailed design document.

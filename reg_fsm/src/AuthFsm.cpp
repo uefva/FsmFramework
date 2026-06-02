@@ -5,9 +5,7 @@
 #include "../inc/AuthFsm.h"
 
 #include "../inc/FsmTableExecutor.h"
-
-#include <iostream>
-#include <ostream>
+#include "../inc/Logger.h"
 
 AuthFsm::AuthFsm() : Cfsm(IDLE)
 {
@@ -87,27 +85,27 @@ void AuthFsm::PostPrcMsg(CMsg& pBuf)
 
 void AuthFsm::HandleInit()
 {
-    std::cout << "[AUTH][MSG_INIT]: initialize authentication context" << std::endl;
+    LOG_DEBUG("AuthFsm", "initialize authentication context");
 }
 
 void AuthFsm::HandleConnect()
 {
-    std::cout << "[AUTH][MSG_CONNECT]: prepare authentication connection" << std::endl;
+    LOG_DEBUG("AuthFsm", "prepare authentication connection");
 }
 
 void AuthFsm::HandleReq()
 {
-    std::cout << "[AUTH][MSG_REQ]: build authentication request" << std::endl;
+    LOG_DEBUG("AuthFsm", "build authentication request");
 }
 
 void AuthFsm::HandleResp()
 {
-    std::cout << "[AUTH][MSG_RESP]: process authentication response" << std::endl;
+    LOG_DEBUG("AuthFsm", "process authentication response");
 }
 
 void AuthFsm::HandleClose()
 {
-    std::cout << "[AUTH][MSG_CLOSE]: release authentication context" << std::endl;
+    LOG_DEBUG("AuthFsm", "release authentication context");
 }
 
 EerrNo AuthFsm::Destroy()
@@ -117,5 +115,7 @@ EerrNo AuthFsm::Destroy()
 
 void AuthFsm::Print(bool detailFlag)
 {
-    std::cout << "[AuthFsm::Print]" << std::endl;
+    LOG_INFO("AuthFsm", "Print detailFlag=" << detailFlag
+                        << " fsmId=" << GetFsmId()
+                        << " state=" << StateToString(GetState()));
 }
