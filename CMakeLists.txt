@@ -8,9 +8,7 @@ set(CMAKE_CXX_STANDARD_REQUIRED ON)
 find_package(Threads REQUIRED)
 enable_testing()
 
-# Demo executable for the full manager/factory/fsm registration flow.
-add_executable(reg_fsm_demo
-    reg_fsm/main.cpp
+set(REG_FSM_SOURCES
     reg_fsm/src/AuthFactory.cpp
     reg_fsm/src/AuthFsm.cpp
     reg_fsm/src/CMsg.cpp
@@ -21,6 +19,12 @@ add_executable(reg_fsm_demo
     reg_fsm/src/RegFactory.cpp
     reg_fsm/src/RegFsm.cpp
     reg_fsm/src/TimerManager.cpp
+)
+
+# Demo executable for the full manager/factory/fsm registration flow.
+add_executable(reg_fsm_demo
+    reg_fsm/main.cpp
+    ${REG_FSM_SOURCES}
 )
 
 target_include_directories(reg_fsm_demo PRIVATE
@@ -32,16 +36,7 @@ target_link_libraries(reg_fsm_demo PRIVATE Threads::Threads)
 # Basic tests for message defaults, invalid transitions, and the main flow.
 add_executable(reg_fsm_tests
     tests/framework_tests.cpp
-    reg_fsm/src/AuthFactory.cpp
-    reg_fsm/src/AuthFsm.cpp
-    reg_fsm/src/CMsg.cpp
-    reg_fsm/src/Cfsm.cpp
-    reg_fsm/src/Cfactory.cpp
-    reg_fsm/src/Cfactory_mgr.cpp
-    reg_fsm/src/Logger.cpp
-    reg_fsm/src/RegFactory.cpp
-    reg_fsm/src/RegFsm.cpp
-    reg_fsm/src/TimerManager.cpp
+    ${REG_FSM_SOURCES}
 )
 
 target_include_directories(reg_fsm_tests PRIVATE
@@ -51,3 +46,15 @@ target_include_directories(reg_fsm_tests PRIVATE
 target_link_libraries(reg_fsm_tests PRIVATE Threads::Threads)
 
 add_test(NAME reg_fsm_tests COMMAND reg_fsm_tests)
+
+# Benchmark executable for framework throughput, routing, concurrency, and timer baselines.
+add_executable(reg_fsm_benchmark
+    benchmarks/framework_benchmark.cpp
+    ${REG_FSM_SOURCES}
+)
+
+target_include_directories(reg_fsm_benchmark PRIVATE
+    reg_fsm/inc
+)
+
+target_link_libraries(reg_fsm_benchmark PRIVATE Threads::Threads)

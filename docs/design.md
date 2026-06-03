@@ -57,7 +57,7 @@ FsmFramework/
     └── framework_tests.cpp
 ```
 
-核心代码位于 `reg_fsm` 目录；`tests/framework_tests.cpp` 覆盖基础行为、主链路和压力测试；`docs/design.md` 是默认中文设计文档。
+核心代码位于 `reg_fsm` 目录；`tests/framework_tests.cpp` 覆盖快速正确性测试；`benchmarks/framework_benchmark.cpp` 覆盖框架压测；`docs/design.md` 是默认中文设计文档。
 
 ## 3. 核心类型
 
@@ -340,13 +340,14 @@ stateDiagram-v2
 项目根目录提供 `CMakeLists.txt`，当前 target：
 
 - `reg_fsm_demo`：示例程序。
-- `reg_fsm_tests`：基础测试和压力测试程序。
+- `reg_fsm_tests`：快速正确性测试程序。
+- `reg_fsm_benchmark`：框架能力压测程序。
 
 ```bash
 cmake -S . -B build
 cmake --build build
 ./build/reg_fsm_demo
-cmake --build build --target test
+ctest -C Debug --test-dir build --output-on-failure
 ```
 
 Windows Debug 构建下可执行文件通常位于：
@@ -354,6 +355,7 @@ Windows Debug 构建下可执行文件通常位于：
 ```bash
 ./build/Debug/reg_fsm_demo.exe
 ./build/Debug/reg_fsm_tests.exe
+./build/Debug/reg_fsm_benchmark.exe
 ```
 
 ## 7. 测试覆盖
@@ -364,12 +366,26 @@ Windows Debug 构建下可执行文件通常位于：
 2. `RegFsm` 在 `IDLE` 下处理非法事件时返回 `INVALID_MSG`。
 3. `AuthFsm` 在 `IDLE` 下处理非法事件时返回 `INVALID_MSG`。
 4. `Cfactory_mgr -> Cfactory -> Cfsm` 主链路 smoke test。
-5. 单生产者消息派发压力测试。
-6. 注册/认证真实流程观察。
-7. 多 FSM 路由压力测试。
-8. 多生产者并发 `SendMsg` 压力测试。
 
-注意：当前压力测试使用 `PERF_MSG_COUNT = 10000000`，适合观察吞吐，但不适合每次快速迭代都完整运行。
+`benchmarks/framework_benchmark.cpp` 覆盖：
+
+1. `noop`：单 FSM no-op 处理，测试 manager 消息泵基础吞吐。
+2. `multi_fsm`：多 FSM 按 `fsmId` 路由，测试 factory/FSM 查找成本。
+3. `concurrent`：多生产者同时 `SendMsg`，测试队列锁竞争。
+4. `real_flow`：运行 `RegFsm/AuthFsm` 真实流程，测试表驱动、action、日志和 timer 综合成本。
+5. `timer`：大量创建 timer 并等待触发，用于后续定时器改造前后的对比。
+
+压测不加入默认 `ctest`。常用命令：
+
+```bash
+./build/Debug/reg_fsm_benchmark.exe --case=all --messages=10000000 --log-level=off
+./build/Debug/reg_fsm_benchmark.exe --case=noop --messages=10000
+./build/Debug/reg_fsm_benchmark.exe --case=multi_fsm --messages=10000 --fsm-count=32
+./build/Debug/reg_fsm_benchmark.exe --case=concurrent --messages=10000 --producers=4
+./build/Debug/reg_fsm_benchmark.exe --case=timer --timers=1000 --timer-delay-ms=1
+```
+
+输出按 case 分块展示，每行保留 `key=value` 字段，便于阅读、复制、保存 baseline 和做版本间对比。
 
 ## 8. 当前限制
 

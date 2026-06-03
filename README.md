@@ -25,7 +25,7 @@ Cfactory_mgr
 - 消息暂存队列：`Cfsm::_save`、`Cfsm::_hold` 及对应 pop 接口。
 - 更细粒度错误码：`SUCCESS`、`ERROR`、`INVALID_STATE`、`INVALID_MSG`、`TIMER_ERROR`。
 - 轻量日志模块：`Logger` 支持级别、模块和时间戳；默认 `INFO` 输出流程摘要，`DEBUG/WARN/ERROR` 追加定位信息。
-- CMake 构建入口和 `reg_fsm_tests` 测试入口。
+- CMake 构建入口、`reg_fsm_tests` 快速测试入口和 `reg_fsm_benchmark` 压测入口。
 
 ## 构建
 
@@ -49,7 +49,7 @@ Windows 下常见路径：
 ## 运行测试
 
 ```bash
-cmake --build build --target test
+ctest -C Debug --test-dir build --output-on-failure
 ```
 
 也可以直接运行测试程序：
@@ -64,7 +64,24 @@ Windows 下常见路径：
 ./build/Debug/reg_fsm_tests.exe
 ```
 
-> 注意：当前测试包含 10,000,000 条消息级别的压力测试，运行时间会明显长于普通 smoke test。
+## 运行压测
+
+`reg_fsm_benchmark` 用于验证框架消息泵、FSM 路由、并发投递、真实流程和定时器能力，不加入默认测试。
+
+```bash
+./build/Debug/reg_fsm_benchmark.exe --case=all --messages=10000000 --log-level=off
+```
+
+常用 smoke 命令：
+
+```bash
+./build/Debug/reg_fsm_benchmark.exe --case=noop --messages=10000
+./build/Debug/reg_fsm_benchmark.exe --case=multi_fsm --messages=10000 --fsm-count=32
+./build/Debug/reg_fsm_benchmark.exe --case=concurrent --messages=10000 --producers=4
+./build/Debug/reg_fsm_benchmark.exe --case=timer --timers=1000 --timer-delay-ms=1
+```
+
+输出按 case 分块展示，每行保留 `key=value` 字段，方便阅读、复制和保存为 baseline。
 
 ## 示例流程
 

@@ -57,7 +57,7 @@ FsmFramework/
     └── framework_tests.cpp
 ```
 
-Core code lives under `reg_fsm`; `tests/framework_tests.cpp` covers basic behavior, the main dispatch path, and stress tests; `docs/design_en.md` is the English design document.
+Core code lives under `reg_fsm`; `tests/framework_tests.cpp` covers fast correctness tests; `benchmarks/framework_benchmark.cpp` covers framework benchmarks; `docs/design_en.md` is the English design document.
 
 ## 3. Core Types
 
@@ -340,13 +340,14 @@ stateDiagram-v2
 The root `CMakeLists.txt` defines two targets:
 
 - `reg_fsm_demo`: demo executable.
-- `reg_fsm_tests`: basic and stress test executable.
+- `reg_fsm_tests`: fast correctness test executable.
+- `reg_fsm_benchmark`: framework benchmark executable.
 
 ```bash
 cmake -S . -B build
 cmake --build build
 ./build/reg_fsm_demo
-cmake --build build --target test
+ctest -C Debug --test-dir build --output-on-failure
 ```
 
 On Windows Debug builds, executables are commonly located at:
@@ -354,6 +355,7 @@ On Windows Debug builds, executables are commonly located at:
 ```bash
 ./build/Debug/reg_fsm_demo.exe
 ./build/Debug/reg_fsm_tests.exe
+./build/Debug/reg_fsm_benchmark.exe
 ```
 
 ## 7. Test Coverage
@@ -364,12 +366,26 @@ On Windows Debug builds, executables are commonly located at:
 2. `RegFsm` returning `INVALID_MSG` for an invalid event in `IDLE`.
 3. `AuthFsm` returning `INVALID_MSG` for an invalid event in `IDLE`.
 4. A smoke test for the `Cfactory_mgr -> Cfactory -> Cfsm` pipeline.
-5. Single-producer message dispatch stress test.
-6. Real registration/authentication flow observation.
-7. Multi-FSM routing stress test.
-8. Multi-producer concurrent `SendMsg` stress test.
 
-Note: the current stress tests use `PERF_MSG_COUNT = 10000000`. This is useful for throughput observation, but not ideal for every quick development iteration.
+`benchmarks/framework_benchmark.cpp` covers:
+
+1. `noop`: single FSM no-op processing for message-pump baseline throughput.
+2. `multi_fsm`: multi-FSM routing by `fsmId` for factory/FSM lookup cost.
+3. `concurrent`: multiple producers calling `SendMsg` to measure queue lock contention.
+4. `real_flow`: `RegFsm/AuthFsm` real flows with table execution, actions, logs, and timers.
+5. `timer`: many timers created and fired for before/after timer refactor comparison.
+
+Benchmarks are not part of the default `ctest` suite. Common commands:
+
+```bash
+./build/Debug/reg_fsm_benchmark.exe --case=all --messages=10000000 --log-level=off
+./build/Debug/reg_fsm_benchmark.exe --case=noop --messages=10000
+./build/Debug/reg_fsm_benchmark.exe --case=multi_fsm --messages=10000 --fsm-count=32
+./build/Debug/reg_fsm_benchmark.exe --case=concurrent --messages=10000 --producers=4
+./build/Debug/reg_fsm_benchmark.exe --case=timer --timers=1000 --timer-delay-ms=1
+```
+
+Output is grouped by case, with `key=value` fields on short lines so results are easier to read, copy, save as baselines, and compare across versions.
 
 ## 8. Current Limitations
 

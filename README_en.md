@@ -25,7 +25,7 @@ Cfactory_mgr
 - Deferred message queues: `Cfsm::_save`, `Cfsm::_hold`, and their pop helpers.
 - More specific error codes: `SUCCESS`, `ERROR`, `INVALID_STATE`, `INVALID_MSG`, and `TIMER_ERROR`.
 - Lightweight logging module: `Logger` supports levels, modules, and timestamps; default `INFO` logs show flow summaries, while `DEBUG/WARN/ERROR` add source location details.
-- CMake build entry and a `reg_fsm_tests` test executable.
+- CMake build entry, a fast `reg_fsm_tests` test executable, and a `reg_fsm_benchmark` benchmark executable.
 
 ## Build
 
@@ -49,7 +49,7 @@ Common Windows path:
 ## Run Tests
 
 ```bash
-cmake --build build --target test
+ctest -C Debug --test-dir build --output-on-failure
 ```
 
 You can also run the test executable directly:
@@ -64,7 +64,24 @@ Common Windows path:
 ./build/Debug/reg_fsm_tests.exe
 ```
 
-> Note: the current test program includes stress tests with 10,000,000 messages, so it can take noticeably longer than a small smoke test.
+## Run Benchmarks
+
+`reg_fsm_benchmark` validates message-pump throughput, FSM routing, concurrent sending, real flows, and timer behavior. It is not part of the default test suite.
+
+```bash
+./build/Debug/reg_fsm_benchmark.exe --case=all --messages=10000000 --log-level=off
+```
+
+Common smoke commands:
+
+```bash
+./build/Debug/reg_fsm_benchmark.exe --case=noop --messages=10000
+./build/Debug/reg_fsm_benchmark.exe --case=multi_fsm --messages=10000 --fsm-count=32
+./build/Debug/reg_fsm_benchmark.exe --case=concurrent --messages=10000 --producers=4
+./build/Debug/reg_fsm_benchmark.exe --case=timer --timers=1000 --timer-delay-ms=1
+```
+
+Benchmark output is grouped by case, with `key=value` fields on short lines for easier reading, copying, and baseline storage.
 
 ## Example Flows
 
