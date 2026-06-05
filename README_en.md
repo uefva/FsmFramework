@@ -29,21 +29,33 @@ Cfactory_mgr
 
 ## Build
 
+The HTTP server target uses Boost.Asio, Boost.Beast, Boost.JSON, and Boost.System
+through the `vcpkg.json` manifest. Configure CMake with your vcpkg toolchain
+before building the HTTP-enabled targets.
+
 ```bash
 cmake -S . -B build
 cmake --build build
 ```
 
-## Run the Demo
+## Run the HTTP Server
 
 ```bash
-./build/reg_fsm_demo
+./build/reg_fsm_demo --host=0.0.0.0 --port=8080 --log-level=info --sync-timeout-ms=5000
 ```
 
 Common Windows path:
 
 ```bash
-./build/Debug/reg_fsm_demo.exe
+./build/Debug/reg_fsm_demo.exe --port=8080
+```
+
+The server exposes two public HTTP endpoints:
+
+```bash
+curl -i -X POST http://127.0.0.1:8080/api/v1/register -H "Content-Type: application/json" -d "{\"sessionId\":1}"
+curl -i -X POST http://127.0.0.1:8080/api/v1/auth -H "Content-Type: application/json" -d "{\"sessionId\":2}"
+curl -i -X POST "http://127.0.0.1:8080/api/v1/register?wait=true" -H "Content-Type: application/json" -d "{\"sessionId\":3}"
 ```
 
 ## Run Tests

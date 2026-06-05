@@ -11,6 +11,10 @@
 
 #include "common.h"
 
+#ifdef ERROR
+#undef ERROR
+#endif
+
 enum class LogLevel
 {
     DEBUG = 0,

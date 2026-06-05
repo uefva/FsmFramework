@@ -6,6 +6,7 @@
 
 #include <algorithm>
 
+#include "../inc/Cfactory_mgr.h"
 #include "../inc/Logger.h"
 
 Cfactory::Cfactory(unsigned int facId)
@@ -136,7 +137,20 @@ EerrNo Cfactory::DispatchToFsm(Cfsm* fsm, CMsg& msg)
     // A terminal FSM is reclaimed by the factory instead of deleting itself.
     if (KILL_FSM == fsm->GetState())
     {
-        KillFsm(fsm->GetFsmId());
+        const unsigned int completedFsmId = fsm->GetFsmId();
+        Cfactory_mgr* manager = GetFacMgr();
+        if (nullptr != manager)
+        {
+            FsmCompletionEvent event;
+            event.serviceId = this->_facId;
+            event.fsmId = completedFsmId;
+            event.sessionId = msg.sessionId;
+            event.result = ret;
+            event.finalEvent = msg.type;
+            manager->NotifyFsmCompleted(event);
+        }
+
+        KillFsm(completedFsmId);
     }
 
     return ret;

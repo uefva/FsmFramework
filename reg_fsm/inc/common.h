@@ -14,6 +14,10 @@
 
 #include "CMsg.h"
 
+#ifdef ERROR
+#undef ERROR
+#endif
+
 
 #define U32 unsigned int
 #define WS_TIMER_ID unsigned int

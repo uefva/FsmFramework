@@ -201,6 +201,26 @@ void Cfactory_mgr::StopAllTimers()
     this->_timerManager.StopAllTimers();
 }
 
+void Cfactory_mgr::SetCompletionCallback(CompletionCallback callback)
+{
+    std::lock_guard<std::mutex> guard(this->_completion_lock);
+    this->_completionCallback = std::move(callback);
+}
+
+void Cfactory_mgr::NotifyFsmCompleted(const FsmCompletionEvent& event)
+{
+    CompletionCallback callback;
+    {
+        std::lock_guard<std::mutex> guard(this->_completion_lock);
+        callback = this->_completionCallback;
+    }
+
+    if (callback)
+    {
+        callback(event);
+    }
+}
+
 Cfactory* Cfactory_mgr::FindFactory(unsigned int serviceId)
 {
     for (auto& factory : this->_fac_list)
